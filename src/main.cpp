@@ -55,7 +55,7 @@ PID PID_Roll(&PID_R_Input, &PID_R_Output, &PID_R_Setpoint, kP_Roll, kI_Roll, kD_
 //Mac and IP Address used for UDP connection.
 byte mac[] = {
     0xA3, 0x03, 0x5C, 0x93, 0xEF, 0xD1};
-IPAddress ip(192, 168, 1, 7); // The arduino's IP Address
+IPAddress ip(192, 168, 1, 7);  // The arduino's IP Address
 unsigned int localPort = 8888; // local port to listen on
 
 IPAddress ipOut(192, 168, 1, 6); // The IP to send messages to.
@@ -67,6 +67,16 @@ char packetBuffer[UDP_TX_PACKET_MAX_SIZE]; // buffer to hold incoming packet
 // An EthernetUDP instance to let us send and receive packets over UDP
 EthernetUDP Udp;
 
+enum state
+{
+   stopped = 0,
+   starting = 1,
+   running = 2,
+   ending = 3,
+   emergency_stop = 99
+};
+state simState;
+
 void setupUDP();
 void readUDP();
 //void readSerialCommand();
@@ -74,6 +84,13 @@ void readEncoderData();
 void computePID();
 void moveMotors();
 void report();
+
+void startSimulation();
+void endSimulation();
+void emergencyStop();
+
+bool moveUp();   //returns true when simulator is in top position.
+bool moveDown(); //returns true when simulator is in bottom position.
 
 void setup()
 {
@@ -84,6 +101,8 @@ void setup()
    }
 
    PitchSetpoint = 0; //PITCH_ENCODER_180_DEG;//PITCH_ENCODER_MAX - 10;
+   RollSetpoint = 0;
+   simState = stopped;
 
    pinMode(motorPitchPin, OUTPUT);
    pinMode(motorRollPin, OUTPUT);
@@ -123,38 +142,70 @@ void loop()
 
    //readUDP();         //where we want to go.
    readEncoderData(); //where we currently are.
-   computePID();      //how we are going to get there.
-   moveMotors();
+
+   switch (simState)
+   {
+   case stopped:
+      break;
+   case starting:
+      if (moveUp())
+      {
+         simState = running;
+      }
+      break;
+   case running:
+      computePID();
+      moveMotors();
+      break;
+   case ending:
+      if (moveDown())
+      {
+         simState = stopped;
+      }
+      break;
+   case emergency_stop:
+      break;
+   }
 
    if (loop_counter == loop_test_times)
    {
       loop_counter = 0;
-      //Serial.println(PitchValue);
       report();
+      switch (simState)
+      {
+      case stopped:
+         Serial.println("State = Stopped");
+         break;
+      case starting:
+         Serial.println("State = Starting");
+         break;
+      case running:
+         Serial.println("State = Running");
+         break;
+      case ending:
+         Serial.println("State = Ending");
+         break;
+      case emergency_stop:
+         Serial.println("State = EMERGENCY STOP");
+         break;
+      }
    }
 }
 
+/**
+ * @brief Listens for UDP commands.
+ * 
+ * Listens for UDP commands on the ports specified at top of file.
+ * If a command is recognized, it triggers the action.
+ * 
+ * Note: This function is not responsible for determining if the action is valid.
+ */
 void readUDP()
 {
 
    int packetSize = Udp.parsePacket();
    if (packetSize == 0)
       return;
-
-   Serial.print("Received packet of size ");
-   Serial.println(packetSize);
-   Serial.print("From ");
-   IPAddress remote = Udp.remoteIP();
-   for (int i = 0; i < 4; i++)
-   {
-      Serial.print(remote[i], DEC);
-      if (i < 3)
-      {
-         Serial.print(".");
-      }
-   }
-   Serial.print(", port ");
-   Serial.println(Udp.remotePort());
 
    // read the packet into packetBufffer
    Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
@@ -163,55 +214,42 @@ void readUDP()
 
    switch (packetBuffer[0])
    {
+   case '0':
+      //emergency stop
+      emergencyStop();
+      Serial.println("Received Emergency Stop Command");
+      break;
+   case 'S':
+      //start
+      startSimulation();
+      Serial.println("Received Start Command");
+      break;
+   case 'E':
+      //stop
+      endSimulation();
+      Serial.println("Received End Command");
+      break;
    case 'M':
-      //5 bytes
-      //M = motion 1 byte
-      //M<Pitch 2 bytes><Roll 2 bytes>
-      //M<xx><xx>
       if (packetSize != 5)
       {
          Serial.println("Malformed move command");
          break;
       }
       PitchSetpoint = 0;
-      PitchSetpoint = (packetBuffer[1] << 1) | packetBuffer[2];
+      PitchSetpoint = (packetBuffer[1] << 8) | packetBuffer[2];
       RollSetpoint = 0;
-      RollSetpoint = (packetBuffer[3] << 1) | packetBuffer[4];
+      RollSetpoint = (packetBuffer[3] << 8) | packetBuffer[4];
       break;
    default:
       break;
    }
-
-   // // send a reply to the IP address and port that sent us the packet we received
-   // Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
-   // Udp.write(ReplyBuffer);
-   // Udp.endPacket();
 }
 
-// void readSerialCommand()
-// {
-//   if (Serial.available() > 2) {
-//     Serial.println("Receiving Data:");
-//     switch ((char)Serial.read())
-//     {
-//     case 'P': {
-//       Serial.println("Pitch Command");
-//       int pIn = Serial.read() << 8 & Serial.read();
-//       PitchSetpoint = map(pIn, 0, 0xFFFF, PITCH_ENCODER_MIN, PITCH_ENCODER_MAX);
-//       break;
-//     }
-//     case 'R': {
-//       int rIn = Serial.read() << 8 & Serial.read();
-//       RollSetpoint = map(rIn, 0, 0xFFFF, ROLL_ENCODER_MIN, ROLL_ENCODER_MAX);
-//       Serial.println("Roll Command");
-//     }
-//     default:
-//       break;
-//     }
-//   }
-//   if (Serial.available() > 16) Serial.flush();
-// }
-
+/**
+ * @brief Retrieves data from encoder
+ * 
+ * Updates the PitchValue and RollValue with data from the encoders.
+ */
 void readEncoderData()
 {
    PitchValue = EncoderPitch.read();
@@ -225,6 +263,11 @@ void readEncoderData()
    RollValue %= ROLL_ENCODER_MAX;
 }
 
+/**
+ * @brief Computes PID outputs for pitch and roll.
+ * 
+ * Adjust setpoints for 360 rotation and calls Compute() on PID objects.
+ */
 void computePID()
 {
    //Update PID Setpoints
@@ -284,21 +327,88 @@ void report()
    byte pitchPWM = (byte)PID_P_Output;
    byte rollPWM = (byte)PID_R_Output;
 
-   char ReplyBuffer[10] = { 
-      (byte)(PitchSetpoint >> 8), 
-      (byte)PitchSetpoint,
-      (byte)(PitchValue >> 8), 
-      (byte)PitchValue,
-      (byte)(RollSetpoint >> 8), 
-      (byte)RollSetpoint,
-      (byte)(RollValue >> 8), 
-      (byte)RollValue,
-      pitchPWM,
-      rollPWM
-      };
-      
-   // Udp.beginPacket(ipOut, outPort);
-   // Udp.write(ReplyBuffer);
-   // Udp.endPacket();
-   // Serial.println("Sent data to monitor.");
+   char ReplyBuffer[10] = {
+       (byte)(PitchSetpoint >> 8),
+       (byte)PitchSetpoint,
+       (byte)(PitchValue >> 8),
+       (byte)PitchValue,
+       (byte)(RollSetpoint >> 8),
+       (byte)RollSetpoint,
+       (byte)(RollValue >> 8),
+       (byte)RollValue,
+       pitchPWM,
+       rollPWM};
+
+   Udp.beginPacket(ipOut, outPort);
+   Udp.write(ReplyBuffer);
+   Udp.endPacket();
+   Serial.println("Sent data to monitor.");
+}
+
+void startSimulation()
+{
+   if (simState == emergency_stop)
+   {
+      Serial.println("Cannot start simulation due to emergency stop.");
+      return;
+   }
+   if (simState != stopped)
+   {
+      Serial.println("Cannot start simulation as the simulator is not stopped.");
+      return;
+   }
+   Serial.println("Starting simulation.");
+   delay(5000);
+   simState = starting;
+}
+
+void endSimulation()
+{
+   if (simState == emergency_stop)
+   {
+      Serial.println("Cannot start simulation due to emergency stop.");
+      return;
+   }
+   if (simState != running)
+   {
+      Serial.println("Cannot start simulation as the simulator is not running.");
+      return;
+   }
+   delay(5000);
+   simState = ending;
+}
+
+void emergencyStop()
+{
+   simState = emergency_stop;
+   analogWrite(motorPitchPin, 0);
+   analogWrite(motorRollPin, 0);
+}
+
+int upTemp = 0;
+bool moveUp()
+{
+   //This function is incomplete.
+   //just some code to simulate moving up.
+   if (upTemp < 5000)
+   {
+      upTemp++;
+      return false;
+   }
+   upTemp = 0;
+   return true;
+}
+
+int downTemp = 0;
+bool moveDown()
+{
+   //This function is incomplete.
+   //just some code to simulate moving down.
+   if (downTemp < 5000)
+   {
+      downTemp++;
+      return false;
+   }
+   downTemp = 0;
+   return true;
 }
