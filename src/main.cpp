@@ -55,12 +55,14 @@ PID PID_Roll(&PID_R_Input, &PID_R_Output, &PID_R_Setpoint, kP_Roll, kI_Roll, kD_
 //Mac and IP Address used for UDP connection.
 byte mac[] = {
     0xA3, 0x03, 0x5C, 0x93, 0xEF, 0xD1};
-IPAddress ip(192, 168, 1, 7);
+IPAddress ip(192, 168, 1, 7); // The arduino's IP Address
 unsigned int localPort = 8888; // local port to listen on
 
+IPAddress ipOut(192, 168, 1, 6); // The IP to send messages to.
+unsigned int outPort = 8888;
+
 // buffers for receiving and sending data
-char packetBuffer[UDP_TX_PACKET_MAX_SIZE]; // buffer to hold incoming packet,
-char ReplyBuffer[] = "acknowledged";       // a string to send back
+char packetBuffer[UDP_TX_PACKET_MAX_SIZE]; // buffer to hold incoming packet
 
 // An EthernetUDP instance to let us send and receive packets over UDP
 EthernetUDP Udp;
@@ -71,118 +73,119 @@ void readUDP();
 void readEncoderData();
 void computePID();
 void moveMotors();
+void report();
 
 void setup()
 {
-  Serial.begin(115200); // start the serial monitor link
-  while (!Serial)
-  {
-    ; // wait for serial port to connect. Needed for native USB port only
-  }
+   Serial.begin(115200); // start the serial monitor link
+   while (!Serial)
+   {
+      ; // wait for serial port to connect. Needed for native USB port only
+   }
 
-  PitchSetpoint = 0; //PITCH_ENCODER_180_DEG;//PITCH_ENCODER_MAX - 10;
+   PitchSetpoint = 0; //PITCH_ENCODER_180_DEG;//PITCH_ENCODER_MAX - 10;
 
-  pinMode(motorPitchPin, OUTPUT);
-  pinMode(motorRollPin, OUTPUT);
+   pinMode(motorPitchPin, OUTPUT);
+   pinMode(motorRollPin, OUTPUT);
 
-  // Use negative min to allow PID calcuation to reverse motor.
-  // But keep range of 0-255
-  PID_Pitch.SetOutputLimits(-128, 127);
-  PID_Roll.SetOutputLimits(-128, 127);
+   // Use negative min to allow PID calcuation to reverse motor.
+   // But keep range of 0-255
+   PID_Pitch.SetOutputLimits(-128, 127);
+   PID_Roll.SetOutputLimits(-128, 127);
 
-  PID_Pitch.SetMode(AUTOMATIC);
-  PID_Roll.SetMode(AUTOMATIC);
+   PID_Pitch.SetMode(AUTOMATIC);
+   PID_Roll.SetMode(AUTOMATIC);
 
-  setupUDP();
+   setupUDP();
 }
 
 void setupUDP()
 {
-  // start the Ethernet
-  Ethernet.begin(mac, ip);
+   // start the Ethernet
+   Ethernet.begin(mac, ip);
 
-  // Check for Ethernet hardware present
-  if (Ethernet.hardwareStatus() == EthernetNoHardware)
-  {
-    Serial.println("Ethernet shield was not found. Sorry, can't run without hardware. :(");
-    return;
-  }
-  if (Ethernet.linkStatus() == LinkOFF)
-  {
-    Serial.println("Ethernet cable is not connected.");
-  }
-  Udp.begin(localPort);
+   // Check for Ethernet hardware present
+   if (Ethernet.hardwareStatus() == EthernetNoHardware)
+   {
+      Serial.println("Ethernet shield was not found. Sorry, can't run without hardware. :(");
+      return;
+   }
+   if (Ethernet.linkStatus() == LinkOFF)
+   {
+      Serial.println("Ethernet cable is not connected.");
+   }
+   Udp.begin(localPort);
 }
 
 void loop()
 {
-  loop_counter++;
+   loop_counter++;
 
-  readUDP();         //where we want to go.
-  readEncoderData(); //where we currently are.
-  computePID();      //how we are going to get there.
-  moveMotors();
+   //readUDP();         //where we want to go.
+   readEncoderData(); //where we currently are.
+   computePID();      //how we are going to get there.
+   moveMotors();
 
-  if (loop_counter == loop_test_times)
-  {
-    loop_counter = 0;
-    Serial.println(PitchValue);
-  }
+   if (loop_counter == loop_test_times)
+   {
+      loop_counter = 0;
+      //Serial.println(PitchValue);
+      report();
+   }
 }
 
 void readUDP()
 {
 
-  int packetSize = Udp.parsePacket();
-  if (packetSize == 0)
-    return;
+   int packetSize = Udp.parsePacket();
+   if (packetSize == 0)
+      return;
 
-  Serial.print("Received packet of size ");
-  Serial.println(packetSize);
-  Serial.print("From ");
-  IPAddress remote = Udp.remoteIP();
-  for (int i = 0; i < 4; i++)
-  {
-    Serial.print(remote[i], DEC);
-    if (i < 3)
-    {
-      Serial.print(".");
-    }
-  }
-  Serial.print(", port ");
-  Serial.println(Udp.remotePort());
+   Serial.print("Received packet of size ");
+   Serial.println(packetSize);
+   Serial.print("From ");
+   IPAddress remote = Udp.remoteIP();
+   for (int i = 0; i < 4; i++)
+   {
+      Serial.print(remote[i], DEC);
+      if (i < 3)
+      {
+         Serial.print(".");
+      }
+   }
+   Serial.print(", port ");
+   Serial.println(Udp.remotePort());
 
-  // read the packet into packetBufffer
-  Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
-  Serial.println("Contents:");
-  Serial.println(packetBuffer);
+   // read the packet into packetBufffer
+   Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
+   Serial.println("Contents:");
+   Serial.println(packetBuffer);
 
-  //5 bytes
-  //M = motion 1 byte
-  //M<Pitch 2 bytes><Roll 2 bytes>
-  //M<xx><xx>
-
-  switch (packetBuffer[0])
-  {
-  case 'M':
-    if (packetSize != 5)
-    {
-      Serial.println("Malformed move command");
+   switch (packetBuffer[0])
+   {
+   case 'M':
+      //5 bytes
+      //M = motion 1 byte
+      //M<Pitch 2 bytes><Roll 2 bytes>
+      //M<xx><xx>
+      if (packetSize != 5)
+      {
+         Serial.println("Malformed move command");
+         break;
+      }
+      PitchSetpoint = 0;
+      PitchSetpoint = (packetBuffer[1] << 1) | packetBuffer[2];
+      RollSetpoint = 0;
+      RollSetpoint = (packetBuffer[3] << 1) | packetBuffer[4];
       break;
-    }
-    PitchSetpoint = 0;
-    PitchSetpoint = (packetBuffer[1] << 1) | packetBuffer[2];
-    RollSetpoint = 0;
-    RollSetpoint = (packetBuffer[3] << 1) | packetBuffer[4];
-    break;
-  default:
-    break;
-  }
+   default:
+      break;
+   }
 
-  // // send a reply to the IP address and port that sent us the packet we received
-  // Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
-  // Udp.write(ReplyBuffer);
-  // Udp.endPacket();
+   // // send a reply to the IP address and port that sent us the packet we received
+   // Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
+   // Udp.write(ReplyBuffer);
+   // Udp.endPacket();
 }
 
 // void readSerialCommand()
@@ -211,59 +214,91 @@ void readUDP()
 
 void readEncoderData()
 {
-  PitchValue = EncoderPitch.read();
-  if (PitchValue < 0)
-    PitchValue += PITCH_ENCODER_MAX;
-  PitchValue %= PITCH_ENCODER_MAX;
+   PitchValue = EncoderPitch.read();
+   if (PitchValue < 0)
+      PitchValue += PITCH_ENCODER_MAX;
+   PitchValue %= PITCH_ENCODER_MAX;
 
-  RollValue = EncoderRoll.read();
-  if (RollValue < 0)
-    RollValue += ROLL_ENCODER_MAX;
-  RollValue %= ROLL_ENCODER_MAX;
+   RollValue = EncoderRoll.read();
+   if (RollValue < 0)
+      RollValue += ROLL_ENCODER_MAX;
+   RollValue %= ROLL_ENCODER_MAX;
 }
 
 void computePID()
 {
-  //Update PID Setpoints
-  // Normalize the heading to be within 180° of Setpoint (desired heading: 0-359°)
-  // Found here: https://forum.arduino.cc/index.php?topic=272298.0
+   //Update PID Setpoints
+   // Normalize the heading to be within 180° of Setpoint (desired heading: 0-359°)
+   // Found here: https://forum.arduino.cc/index.php?topic=272298.0
 
-  if (PitchValue - PitchSetpoint < -PITCH_ENCODER_180_DEG)
-  {
-    PID_P_Setpoint = PitchSetpoint - PITCH_ENCODER_MAX;
-  }
-  else if (PitchValue - PitchSetpoint > PITCH_ENCODER_180_DEG)
-  {
-    PID_P_Setpoint = PitchSetpoint + PITCH_ENCODER_MAX;
-  }
-  else
-  {
-    PID_P_Setpoint = PitchSetpoint;
-  }
+   if (PitchValue - PitchSetpoint < -PITCH_ENCODER_180_DEG)
+   {
+      PID_P_Setpoint = PitchSetpoint - PITCH_ENCODER_MAX;
+   }
+   else if (PitchValue - PitchSetpoint > PITCH_ENCODER_180_DEG)
+   {
+      PID_P_Setpoint = PitchSetpoint + PITCH_ENCODER_MAX;
+   }
+   else
+   {
+      PID_P_Setpoint = PitchSetpoint;
+   }
 
-  if (RollValue - RollSetpoint < -ROLL_ENCODER_180_DEG)
-  {
-    PID_R_Setpoint = RollSetpoint - ROLL_ENCODER_MAX;
-  }
-  else if (RollValue - RollSetpoint > ROLL_ENCODER_180_DEG)
-  {
-    PID_R_Setpoint = RollSetpoint + ROLL_ENCODER_MAX;
-  }
-  else
-  {
-    PID_R_Setpoint = RollSetpoint;
-  }
+   if (RollValue - RollSetpoint < -ROLL_ENCODER_180_DEG)
+   {
+      PID_R_Setpoint = RollSetpoint - ROLL_ENCODER_MAX;
+   }
+   else if (RollValue - RollSetpoint > ROLL_ENCODER_180_DEG)
+   {
+      PID_R_Setpoint = RollSetpoint + ROLL_ENCODER_MAX;
+   }
+   else
+   {
+      PID_R_Setpoint = RollSetpoint;
+   }
 
-  //Update PID Inputs
-  PID_P_Input = PitchValue;
-  PID_R_Input = RollValue;
+   //Update PID Inputs
+   PID_P_Input = PitchValue;
+   PID_R_Input = RollValue;
 
-  PID_Pitch.Compute();
-  PID_Roll.Compute();
+   PID_Pitch.Compute();
+   PID_Roll.Compute();
 }
 
 void moveMotors()
 {
-  analogWrite(motorPitchPin, PID_P_Output + 128);
-  analogWrite(motorRollPin, PID_R_Output + 128);
+   analogWrite(motorPitchPin, PID_P_Output + 128);
+   analogWrite(motorRollPin, PID_R_Output + 128);
+}
+
+void report()
+{
+   //byte map
+   //0-1 Pitch Setpoint
+   //2-3 Pitch Value
+   //4-5 Roll Setpoint
+   //6-7 Roll Value
+   //8 Pitch PWM
+   //9 Roll PWM
+
+   byte pitchPWM = (byte)PID_P_Output;
+   byte rollPWM = (byte)PID_R_Output;
+
+   char ReplyBuffer[10] = { 
+      (byte)(PitchSetpoint >> 8), 
+      (byte)PitchSetpoint,
+      (byte)(PitchValue >> 8), 
+      (byte)PitchValue,
+      (byte)(RollSetpoint >> 8), 
+      (byte)RollSetpoint,
+      (byte)(RollValue >> 8), 
+      (byte)RollValue,
+      pitchPWM,
+      rollPWM
+      };
+      
+   // Udp.beginPacket(ipOut, outPort);
+   // Udp.write(ReplyBuffer);
+   // Udp.endPacket();
+   // Serial.println("Sent data to monitor.");
 }
