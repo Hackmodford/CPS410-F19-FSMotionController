@@ -11,17 +11,11 @@
 #define PITCH_ENCODER_MAX 12600    //105*120 and 360 degree
 #define PITCH_ENCODER_180_DEG 6300 // 180 degree
 
-#define kP_Pitch 1
-#define kI_Pitch 1
-#define kD_Pitch 1
-
 #define ROLL_ENCODER_MIN 0
 #define ROLL_ENCODER_MAX 8640     //72*120 and 360 degree
 #define ROLL_ENCODER_180_DEG 4320 // 180 degree
 
-#define kP_Roll 1
-#define kI_Roll 1
-#define kD_Roll 1
+
 
 #define motorPitchPin 2
 #define motorRollPin 3
@@ -33,17 +27,21 @@
 #define encoderRollAPin 24
 #define encoderRollBPin 25
 
-#define loop_test_times 20000 //Run loop 20000 times then calculate time
-
-int loop_counter = 0; //holds the count for every loop pass
+#define REPORT_INTERVAL 100 //report every tenth of a second
+long previousMillis = 0; //holds the count for every loop pass
 
 int PitchSetpoint = 0;
-int RollSetpoint = 0;
-
 int PitchValue = 0;
-int RollValue = 0;
-
+double kP_Pitch = 1;
+double kI_Pitch = 1;
+double kD_Pitch = 1;
 double PID_P_Setpoint, PID_P_Input, PID_P_Output;
+
+int RollSetpoint = 0;
+int RollValue = 0;
+double kP_Roll = 1;
+double kI_Roll = 1;
+double kD_Roll = 1;
 double PID_R_Setpoint, PID_R_Input, PID_R_Output;
 
 Encoder EncoderPitch(encoderPitchAPin, encoderPitchBPin);
@@ -55,10 +53,10 @@ PID PID_Roll(&PID_R_Input, &PID_R_Output, &PID_R_Setpoint, kP_Roll, kI_Roll, kD_
 //Mac and IP Address used for UDP connection.
 byte mac[] = {
     0xA3, 0x03, 0x5C, 0x93, 0xEF, 0xD1};
-IPAddress ip(192, 168, 1, 7);  // The arduino's IP Address
+IPAddress ip(192, 168, 1, 6);  // The arduino's IP Address
 unsigned int localPort = 8888; // local port to listen on
 
-IPAddress ipOut(192, 168, 1, 6); // The IP to send messages to.
+IPAddress ipOut(192, 168, 1, 5); // The IP to send messages to.
 unsigned int outPort = 8888;
 
 // buffers for receiving and sending data
@@ -95,10 +93,6 @@ bool moveDown(); //returns true when simulator is in bottom position.
 void setup()
 {
    Serial.begin(115200); // start the serial monitor link
-   while (!Serial)
-   {
-      ; // wait for serial port to connect. Needed for native USB port only
-   }
 
    PitchSetpoint = 0; //PITCH_ENCODER_180_DEG;//PITCH_ENCODER_MAX - 10;
    RollSetpoint = 0;
@@ -138,14 +132,15 @@ void setupUDP()
 
 void loop()
 {
-   loop_counter++;
-
-   //readUDP();         //where we want to go.
+   readUDP();         //where we want to go.
    readEncoderData(); //where we currently are.
 
    switch (simState)
    {
    case stopped:
+      PID_P_Output = 0;
+      PID_R_Output = 0;
+      moveMotors();
       break;
    case starting:
       if (moveUp())
@@ -167,28 +162,11 @@ void loop()
       break;
    }
 
-   if (loop_counter == loop_test_times)
+   unsigned long currentMillis = millis();
+   if (currentMillis - previousMillis > REPORT_INTERVAL)
    {
-      loop_counter = 0;
+      previousMillis = currentMillis;
       report();
-      switch (simState)
-      {
-      case stopped:
-         Serial.println("State = Stopped");
-         break;
-      case starting:
-         Serial.println("State = Starting");
-         break;
-      case running:
-         Serial.println("State = Running");
-         break;
-      case ending:
-         Serial.println("State = Ending");
-         break;
-      case emergency_stop:
-         Serial.println("State = EMERGENCY STOP");
-         break;
-      }
    }
 }
 
@@ -209,8 +187,6 @@ void readUDP()
 
    // read the packet into packetBufffer
    Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
-   Serial.println("Contents:");
-   Serial.println(packetBuffer);
 
    switch (packetBuffer[0])
    {
@@ -230,16 +206,36 @@ void readUDP()
       Serial.println("Received End Command");
       break;
    case 'M':
+      //update set points
       if (packetSize != 5)
       {
          Serial.println("Malformed move command");
          break;
       }
-      PitchSetpoint = 0;
-      PitchSetpoint = (packetBuffer[1] << 8) | packetBuffer[2];
-      RollSetpoint = 0;
-      RollSetpoint = (packetBuffer[3] << 8) | packetBuffer[4];
+      memcpy(&PitchSetpoint, &packetBuffer[1], sizeof(int));
+      memcpy(&RollSetpoint, &packetBuffer[3], sizeof(int));
       break;
+   case '1':
+      // update pitch pid values
+      if (packetSize != 24)
+      {
+         Serial.println("Malformed update pitch PID command");
+         break;
+      }
+      memcpy(&kP_Pitch, &packetBuffer[1], sizeof(double));
+      memcpy(&kI_Pitch, &packetBuffer[9], sizeof(double));
+      memcpy(&kD_Pitch, &packetBuffer[17], sizeof(double));
+      break;
+   case '2':
+      //update roll pid values
+      if (packetSize != 24)
+      {
+         Serial.println("Malformed update roll PID command");
+         break;
+      }
+      memcpy(&kP_Roll, &packetBuffer[1], sizeof(double));
+      memcpy(&kI_Roll, &packetBuffer[9], sizeof(double));
+      memcpy(&kD_Roll, &packetBuffer[17], sizeof(double));
    default:
       break;
    }
@@ -323,26 +319,28 @@ void report()
    //6-7 Roll Value
    //8 Pitch PWM
    //9 Roll PWM
+   //10 State
 
-   byte pitchPWM = (byte)PID_P_Output;
-   byte rollPWM = (byte)PID_R_Output;
-
-   char ReplyBuffer[10] = {
-       (byte)(PitchSetpoint >> 8),
-       (byte)PitchSetpoint,
-       (byte)(PitchValue >> 8),
-       (byte)PitchValue,
-       (byte)(RollSetpoint >> 8),
-       (byte)RollSetpoint,
-       (byte)(RollValue >> 8),
-       (byte)RollValue,
-       pitchPWM,
-       rollPWM};
-
+   byte pitchPWM = (byte)(PID_P_Output + 128);
+   byte rollPWM = (byte)(PID_R_Output + 128);
+   byte bufferSize = 59;
+   char *ReplyBuffer = new char[bufferSize];
+   memcpy(&ReplyBuffer[0], &PitchSetpoint, sizeof(int));
+   memcpy(&ReplyBuffer[2], &PitchValue, sizeof(int));
+   memcpy(&ReplyBuffer[4], &RollSetpoint, sizeof(int));
+   memcpy(&ReplyBuffer[6], &RollValue, sizeof(int));
+   memcpy(&ReplyBuffer[8], &pitchPWM, sizeof(byte));
+   memcpy(&ReplyBuffer[9], &rollPWM, sizeof(byte));
+   memcpy(&ReplyBuffer[10], &simState, sizeof(byte));
+   memcpy(&ReplyBuffer[11], &kP_Pitch, sizeof(double));
+   memcpy(&ReplyBuffer[19], &kI_Pitch, sizeof(double));
+   memcpy(&ReplyBuffer[27], &kD_Pitch, sizeof(double));
+   memcpy(&ReplyBuffer[35], &kP_Roll, sizeof(double));
+   memcpy(&ReplyBuffer[43], &kI_Roll, sizeof(double));
+   memcpy(&ReplyBuffer[51], &kD_Roll, sizeof(double));
    Udp.beginPacket(ipOut, outPort);
-   Udp.write(ReplyBuffer);
+   Udp.write(ReplyBuffer, bufferSize);
    Udp.endPacket();
-   Serial.println("Sent data to monitor.");
 }
 
 void startSimulation()
@@ -357,9 +355,9 @@ void startSimulation()
       Serial.println("Cannot start simulation as the simulator is not stopped.");
       return;
    }
-   Serial.println("Starting simulation.");
-   delay(5000);
    simState = starting;
+   report();
+   delay(2000);
 }
 
 void endSimulation()
@@ -374,8 +372,9 @@ void endSimulation()
       Serial.println("Cannot start simulation as the simulator is not running.");
       return;
    }
-   delay(5000);
    simState = ending;
+   report();
+   delay(2000);
 }
 
 void emergencyStop()
