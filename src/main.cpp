@@ -1,8 +1,15 @@
+//#pragma once
 #include <Arduino.h>
 #include <PID_v1.h>
 #include <Encoder.h>
 #include <Ethernet.h>
 #include <EthernetUdp.h>
+#include <SD.h>
+
+#include "config.h"
+using namespace std;
+
+#define CHIP_SELECT_PIN 4
 
 #define INPUT_MIN 0
 #define INPUT_MAX 255
@@ -17,7 +24,7 @@
 
 #define motorPitchPin 2
 #define motorRollPin 3
-#define motorCommonPin 4
+#define motorCommonPin 5 //pin 4 is used by SD card
 
 #define encoderPitchAPin 22
 #define encoderPitchBPin 23
@@ -26,7 +33,7 @@
 #define encoderRollBPin 25
 
 #define REPORT_INTERVAL 100 //report every tenth of a second
-long previousMillis = 0; //holds the count for every loop pass
+long previousMillis = 0;    //holds the count for every loop pass
 
 int PitchSetpoint = 0;
 int PitchValue = 0;
@@ -48,14 +55,13 @@ Encoder EncoderRoll(encoderRollAPin, encoderRollBPin);
 PID PID_Pitch(&PID_P_Input, &PID_P_Output, &PID_P_Setpoint, kP_Pitch, kI_Pitch, kD_Pitch, REVERSE);
 PID PID_Roll(&PID_R_Input, &PID_R_Output, &PID_R_Setpoint, kP_Roll, kI_Roll, kD_Roll, REVERSE);
 
-//Mac and IP Address used for UDP connection.
-byte mac[] = {
-    0xA3, 0x03, 0x5C, 0x93, 0xEF, 0xD1};
-IPAddress ip(192, 168, 1, 6);  // The arduino's IP Address
-unsigned int localPort = 8888; // local port to listen on
+byte mac[6]; // device mac address
 
-IPAddress ipOut(192, 168, 1, 5); // The IP to send messages to.
-unsigned int outPort = 8888;
+IPAddress ip; // address to listen
+uint16_t localPort; // port to listen
+
+IPAddress ipOut; // address to broadcast
+uint16_t outPort; // port to send
 
 // buffers for receiving and sending data
 char packetBuffer[UDP_TX_PACKET_MAX_SIZE]; // buffer to hold incoming packet
@@ -73,6 +79,7 @@ enum state
 };
 state simState;
 
+void loadConfiguration();
 void setupUDP();
 void readUDP();
 //void readSerialCommand();
@@ -90,11 +97,13 @@ bool moveDown(); //returns true when simulator is in bottom position.
 
 void setup()
 {
+   //test LEDS
    pinMode(7, OUTPUT);
    pinMode(6, OUTPUT);
-   Serial.begin(115200); // start the serial monitor link
 
-   PitchSetpoint = 0; //PITCH_ENCODER_180_DEG;//PITCH_ENCODER_MAX - 10;
+   Serial.begin(115200);
+
+   PitchSetpoint = 0;
    RollSetpoint = 0;
    simState = stopped;
 
@@ -109,8 +118,36 @@ void setup()
    PID_Pitch.SetMode(AUTOMATIC);
    PID_Roll.SetMode(AUTOMATIC);
 
-   setupUDP();
+   //initializing the SD card
+   Serial.print("Initializing SD card...");
+   if (!SD.begin(CHIP_SELECT_PIN))
+   {
+      Serial.println("Card failed, or not present");
+      while(true); //don't run...
+   }
+   else
+   {
+      Serial.println("card initialized.");
+   }
 
+   loadConfiguration();
+   setupUDP();
+}
+
+void loadConfiguration()
+{
+   Config config;
+   config.getMACAddress(mac);
+   config.getIPAddress(ip);
+   config.getPort(localPort);
+   config.getOutgoingIPAddress(ipOut);
+   config.getOutgoingPort(outPort);
+   config.getKP_Pitch(kP_Pitch);
+   config.getKI_Pitch(kI_Pitch);
+   config.getKD_Pitch(kD_Pitch);
+   config.getKP_Roll(kP_Roll);
+   config.getKI_Roll(kI_Roll);
+   config.getKD_Roll(kD_Roll);
 }
 
 void setupUDP()
@@ -122,11 +159,7 @@ void setupUDP()
    if (Ethernet.hardwareStatus() == EthernetNoHardware)
    {
       Serial.println("Ethernet shield was not found. Sorry, can't run without hardware. :(");
-      return;
-   }
-   if (Ethernet.linkStatus() == LinkOFF)
-   {
-      Serial.println("Ethernet cable is not connected.");
+      while(true);
    }
    Udp.begin(localPort);
 }
@@ -170,9 +203,9 @@ void loop()
       // Ability to exit emergency stop.
       break;
    }
-   
-      digitalWrite(7, simState == running ? LOW : HIGH);
-      digitalWrite(6, simState == running ? HIGH : LOW);
+
+   digitalWrite(7, simState != running); // red LED
+   digitalWrite(6, simState == running); // green LED
 
    unsigned long currentMillis = millis();
    if (currentMillis - previousMillis > REPORT_INTERVAL)
@@ -338,7 +371,7 @@ void moveMotors()
 //51 kD Roll
 void report()
 {
-   
+
    byte pitchPWM = (byte)(abs(PID_P_Output));
    byte rollPWM = (byte)(abs(PID_R_Output));
    byte bufferSize = 59;
