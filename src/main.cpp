@@ -15,8 +15,6 @@
 #define ROLL_ENCODER_MAX 8640     //72*120 and 360 degree
 #define ROLL_ENCODER_180_DEG 4320 // 180 degree
 
-
-
 #define motorPitchPin 2
 #define motorRollPin 3
 #define motorCommonPin 4
@@ -92,7 +90,11 @@ bool moveDown(); //returns true when simulator is in bottom position.
 
 void setup()
 {
+   pinMode(7, OUTPUT);
+   pinMode(6, OUTPUT);
+   #if DEBUG
    Serial.begin(115200); // start the serial monitor link
+   #endif
 
    PitchSetpoint = 0; //PITCH_ENCODER_180_DEG;//PITCH_ENCODER_MAX - 10;
    RollSetpoint = 0;
@@ -103,8 +105,8 @@ void setup()
 
    // Use negative min to allow PID calcuation to reverse motor.
    // But keep range of 0-255
-   PID_Pitch.SetOutputLimits(-128, 127);
-   PID_Roll.SetOutputLimits(-128, 127);
+   PID_Pitch.SetOutputLimits(-255, 255);
+   PID_Roll.SetOutputLimits(-255, 255);
 
    PID_Pitch.SetMode(AUTOMATIC);
    PID_Roll.SetMode(AUTOMATIC);
@@ -120,12 +122,16 @@ void setupUDP()
    // Check for Ethernet hardware present
    if (Ethernet.hardwareStatus() == EthernetNoHardware)
    {
+      #if DEBUG
       Serial.println("Ethernet shield was not found. Sorry, can't run without hardware. :(");
+      #endif
       return;
    }
    if (Ethernet.linkStatus() == LinkOFF)
    {
+      #if DEBUG
       Serial.println("Ethernet cable is not connected.");
+      #endif
    }
    Udp.begin(localPort);
 }
@@ -138,6 +144,8 @@ void loop()
    switch (simState)
    {
    case stopped:
+      digitalWrite(7, HIGH);
+      digitalWrite(6, LOW);
       PID_P_Output = 0;
       PID_R_Output = 0;
       moveMotors();
@@ -149,6 +157,8 @@ void loop()
       }
       break;
    case running:
+      digitalWrite(7, LOW);
+      digitalWrite(6, HIGH);
       computePID();
       moveMotors();
       break;
@@ -193,23 +203,31 @@ void readUDP()
    case '0':
       //emergency stop
       emergencyStop();
+      #if DEBUG
       Serial.println("Received Emergency Stop Command");
+      #endif
       break;
    case 'S':
       //start
       startSimulation();
+      #if DEBUG
       Serial.println("Received Start Command");
+      #endif
       break;
    case 'E':
       //stop
       endSimulation();
+      #if DEBUG
       Serial.println("Received End Command");
+      #endif
       break;
    case 'M':
       //update set points
       if (packetSize != 5)
       {
+         #if DEBUG
          Serial.println("Malformed move command");
+         #endif
          break;
       }
       memcpy(&PitchSetpoint, &packetBuffer[1], sizeof(int));
@@ -219,7 +237,9 @@ void readUDP()
       // update pitch pid values
       if (packetSize != 24)
       {
+         #if DEBUG
          Serial.println("Malformed update pitch PID command");
+         #endif
          break;
       }
       memcpy(&kP_Pitch, &packetBuffer[1], sizeof(double));
@@ -230,7 +250,9 @@ void readUDP()
       //update roll pid values
       if (packetSize != 24)
       {
+         #if DEBUG
          Serial.println("Malformed update roll PID command");
+         #endif
          break;
       }
       memcpy(&kP_Roll, &packetBuffer[1], sizeof(double));
@@ -306,25 +328,32 @@ void computePID()
 
 void moveMotors()
 {
-   analogWrite(motorPitchPin, PID_P_Output + 128);
-   analogWrite(motorRollPin, PID_R_Output + 128);
+   analogWrite(motorPitchPin, abs(PID_P_Output));
+   analogWrite(motorRollPin, abs(PID_R_Output));
 }
 
+//byte legend
+//0-1 Pitch Setpoint
+//2-3 Pitch Value
+//4-5 Roll Setpoint
+//6-7 Roll Value
+//8 Pitch PWM
+//9 Roll PWM
+//10 State
+//11 kP Pitch
+//19 kI Pitch
+//27 kD Pitch
+//35 kP Roll
+//43 kI Roll
+//51 kD Roll
 void report()
 {
-   //byte map
-   //0-1 Pitch Setpoint
-   //2-3 Pitch Value
-   //4-5 Roll Setpoint
-   //6-7 Roll Value
-   //8 Pitch PWM
-   //9 Roll PWM
-   //10 State
-
-   byte pitchPWM = (byte)(PID_P_Output + 128);
-   byte rollPWM = (byte)(PID_R_Output + 128);
+   
+   byte pitchPWM = (byte)(abs(PID_P_Output));
+   byte rollPWM = (byte)(abs(PID_R_Output));
    byte bufferSize = 59;
    char *ReplyBuffer = new char[bufferSize];
+
    memcpy(&ReplyBuffer[0], &PitchSetpoint, sizeof(int));
    memcpy(&ReplyBuffer[2], &PitchValue, sizeof(int));
    memcpy(&ReplyBuffer[4], &RollSetpoint, sizeof(int));
@@ -338,21 +367,28 @@ void report()
    memcpy(&ReplyBuffer[35], &kP_Roll, sizeof(double));
    memcpy(&ReplyBuffer[43], &kI_Roll, sizeof(double));
    memcpy(&ReplyBuffer[51], &kD_Roll, sizeof(double));
+
    Udp.beginPacket(ipOut, outPort);
    Udp.write(ReplyBuffer, bufferSize);
    Udp.endPacket();
+
+   delete ReplyBuffer;
 }
 
 void startSimulation()
 {
    if (simState == emergency_stop)
    {
+      #if DEBUG
       Serial.println("Cannot start simulation due to emergency stop.");
+      #endif
       return;
    }
    if (simState != stopped)
    {
+      #if DEBUG
       Serial.println("Cannot start simulation as the simulator is not stopped.");
+      #endif
       return;
    }
    simState = starting;
@@ -364,12 +400,16 @@ void endSimulation()
 {
    if (simState == emergency_stop)
    {
+      #if DEBUG
       Serial.println("Cannot start simulation due to emergency stop.");
+      #endif
       return;
    }
    if (simState != running)
    {
+      #if DEBUG
       Serial.println("Cannot start simulation as the simulator is not running.");
+      #endif
       return;
    }
    simState = ending;
