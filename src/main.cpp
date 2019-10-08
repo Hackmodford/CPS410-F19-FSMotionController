@@ -92,9 +92,7 @@ void setup()
 {
    pinMode(7, OUTPUT);
    pinMode(6, OUTPUT);
-   #if DEBUG
    Serial.begin(115200); // start the serial monitor link
-   #endif
 
    PitchSetpoint = 0; //PITCH_ENCODER_180_DEG;//PITCH_ENCODER_MAX - 10;
    RollSetpoint = 0;
@@ -112,6 +110,7 @@ void setup()
    PID_Roll.SetMode(AUTOMATIC);
 
    setupUDP();
+
 }
 
 void setupUDP()
@@ -122,16 +121,12 @@ void setupUDP()
    // Check for Ethernet hardware present
    if (Ethernet.hardwareStatus() == EthernetNoHardware)
    {
-      #if DEBUG
       Serial.println("Ethernet shield was not found. Sorry, can't run without hardware. :(");
-      #endif
       return;
    }
    if (Ethernet.linkStatus() == LinkOFF)
    {
-      #if DEBUG
       Serial.println("Ethernet cable is not connected.");
-      #endif
    }
    Udp.begin(localPort);
 }
@@ -144,33 +139,40 @@ void loop()
    switch (simState)
    {
    case stopped:
-      digitalWrite(7, HIGH);
-      digitalWrite(6, LOW);
       PID_P_Output = 0;
       PID_R_Output = 0;
       moveMotors();
       break;
    case starting:
+      // Balance
+      // Raise
       if (moveUp())
       {
          simState = running;
       }
       break;
    case running:
-      digitalWrite(7, LOW);
-      digitalWrite(6, HIGH);
+      // Two Switches -> Emergency Stop
+      // Panic Button -> End State
       computePID();
       moveMotors();
       break;
    case ending:
+      // Go to neutral position
+      // Lower
       if (moveDown())
       {
          simState = stopped;
       }
       break;
    case emergency_stop:
+      // No power to motors
+      // Ability to exit emergency stop.
       break;
    }
+   
+      digitalWrite(7, simState == running ? LOW : HIGH);
+      digitalWrite(6, simState == running ? HIGH : LOW);
 
    unsigned long currentMillis = millis();
    if (currentMillis - previousMillis > REPORT_INTERVAL)
@@ -203,31 +205,23 @@ void readUDP()
    case '0':
       //emergency stop
       emergencyStop();
-      #if DEBUG
       Serial.println("Received Emergency Stop Command");
-      #endif
       break;
    case 'S':
       //start
       startSimulation();
-      #if DEBUG
       Serial.println("Received Start Command");
-      #endif
       break;
    case 'E':
       //stop
       endSimulation();
-      #if DEBUG
       Serial.println("Received End Command");
-      #endif
       break;
    case 'M':
       //update set points
       if (packetSize != 5)
       {
-         #if DEBUG
          Serial.println("Malformed move command");
-         #endif
          break;
       }
       memcpy(&PitchSetpoint, &packetBuffer[1], sizeof(int));
@@ -237,9 +231,7 @@ void readUDP()
       // update pitch pid values
       if (packetSize != 24)
       {
-         #if DEBUG
          Serial.println("Malformed update pitch PID command");
-         #endif
          break;
       }
       memcpy(&kP_Pitch, &packetBuffer[1], sizeof(double));
@@ -250,9 +242,7 @@ void readUDP()
       //update roll pid values
       if (packetSize != 24)
       {
-         #if DEBUG
          Serial.println("Malformed update roll PID command");
-         #endif
          break;
       }
       memcpy(&kP_Roll, &packetBuffer[1], sizeof(double));
@@ -379,16 +369,12 @@ void startSimulation()
 {
    if (simState == emergency_stop)
    {
-      #if DEBUG
       Serial.println("Cannot start simulation due to emergency stop.");
-      #endif
       return;
    }
    if (simState != stopped)
    {
-      #if DEBUG
       Serial.println("Cannot start simulation as the simulator is not stopped.");
-      #endif
       return;
    }
    simState = starting;
@@ -400,16 +386,12 @@ void endSimulation()
 {
    if (simState == emergency_stop)
    {
-      #if DEBUG
       Serial.println("Cannot start simulation due to emergency stop.");
-      #endif
       return;
    }
    if (simState != running)
    {
-      #if DEBUG
       Serial.println("Cannot start simulation as the simulator is not running.");
-      #endif
       return;
    }
    simState = ending;
