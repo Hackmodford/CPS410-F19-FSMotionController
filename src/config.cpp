@@ -1,5 +1,6 @@
-#include <IniFile.h>
 #include "config.h"
+#include <IniFile.h>
+
 using namespace std;
 
 const char *filename = "/config.ini";

@@ -1,5 +1,8 @@
-#include <stdint.h>
+#ifndef FSMOTIONCONTROLLER_CONFIG_H
+#define FSMOTIONCONTROLLER_CONFIG_H
+
 #include <IPAddress.h>
+
 using namespace std;
 
 class Config {
@@ -21,3 +24,5 @@ class Config {
    private:
       void printErrorMessage(uint8_t e, bool eol);
 };
+
+#endif //FSMOTIONCONTROLLER_CONFIG_H
