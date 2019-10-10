@@ -7,12 +7,17 @@
 #include <SD.h>
 
 #include "config.h"
+#include "DAC.h"
+
 using namespace std;
 
-#define CHIP_SELECT_PIN 4
-
-#define INPUT_MIN 0
-#define INPUT_MAX 255
+#define SPI_SD_PIN 4
+#define SPI_ETHERNET_PIN 10
+#define SPI_DAC_PIN 52
+#define encoderPitchAPin 22
+#define encoderPitchBPin 23
+#define encoderRollAPin 24
+#define encoderRollBPin 25
 
 #define PITCH_ENCODER_MIN 0
 #define PITCH_ENCODER_MAX 12600    //105*120 and 360 degree
@@ -21,16 +26,6 @@ using namespace std;
 #define ROLL_ENCODER_MIN 0
 #define ROLL_ENCODER_MAX 8640     //72*120 and 360 degree
 #define ROLL_ENCODER_180_DEG 4320 // 180 degree
-
-#define motorPitchPin 2
-#define motorRollPin 3
-#define motorCommonPin 5 //pin 4 is used by SD card
-
-#define encoderPitchAPin 22
-#define encoderPitchBPin 23
-
-#define encoderRollAPin 24
-#define encoderRollBPin 25
 
 #define REPORT_INTERVAL 100 //report every tenth of a second
 long previousMillis = 0;    //holds the count for every loop pass
@@ -55,12 +50,14 @@ Encoder EncoderRoll(encoderRollAPin, encoderRollBPin);
 PID PID_Pitch(&PID_P_Input, &PID_P_Output, &PID_P_Setpoint, kP_Pitch, kI_Pitch, kD_Pitch, REVERSE);
 PID PID_Roll(&PID_R_Input, &PID_R_Output, &PID_R_Setpoint, kP_Roll, kI_Roll, kD_Roll, REVERSE);
 
+DAC DAC_Sim(SPI_DAC_PIN, 32, 33);
+
 byte mac[6]; // device mac address
 
-IPAddress ip; // address to listen
+IPAddress ip;       // address to listen
 uint16_t localPort; // port to listen
 
-IPAddress ipOut; // address to broadcast
+IPAddress ipOut;  // address to broadcast
 uint16_t outPort; // port to send
 
 // buffers for receiving and sending data
@@ -107,23 +104,21 @@ void setup()
    RollSetpoint = 0;
    simState = stopped;
 
-   pinMode(motorPitchPin, OUTPUT);
-   pinMode(motorRollPin, OUTPUT);
-
    // Use negative min to allow PID calcuation to reverse motor.
    // But keep range of 0-255
-   PID_Pitch.SetOutputLimits(-255, 255);
-   PID_Roll.SetOutputLimits(-255, 255);
+   PID_Pitch.SetOutputLimits(INT16_MIN, INT16_MAX);
+   PID_Roll.SetOutputLimits(INT16_MIN, INT16_MAX);
 
    PID_Pitch.SetMode(AUTOMATIC);
    PID_Roll.SetMode(AUTOMATIC);
 
    //initializing the SD card
    Serial.print("Initializing SD card...");
-   if (!SD.begin(CHIP_SELECT_PIN))
+   if (!SD.begin(SPI_SD_PIN))
    {
       Serial.println("Card failed, or not present");
-      while(true); //don't run...
+      while (true)
+         ; //don't run...
    }
    else
    {
@@ -159,7 +154,8 @@ void setupUDP()
    if (Ethernet.hardwareStatus() == EthernetNoHardware)
    {
       Serial.println("Ethernet shield was not found. Sorry, can't run without hardware. :(");
-      while(true);
+      while (true)
+         ;
    }
    Udp.begin(localPort);
 }
@@ -351,8 +347,7 @@ void computePID()
 
 void moveMotors()
 {
-   analogWrite(motorPitchPin, abs(PID_P_Output));
-   analogWrite(motorRollPin, abs(PID_R_Output));
+   //DAC_Sim.setValues((int)PID_P_Output, (int)PID_R_Output, 0, 0);
 }
 
 //byte legend
@@ -372,24 +367,24 @@ void moveMotors()
 void report()
 {
 
-   byte pitchPWM = (byte)(abs(PID_P_Output));
-   byte rollPWM = (byte)(abs(PID_R_Output));
-   byte bufferSize = 59;
+   int pitchPWM = (int)PID_P_Output;
+   int rollPWM = (int)PID_R_Output;
+   byte bufferSize = 62;
    char *ReplyBuffer = new char[bufferSize];
 
    memcpy(&ReplyBuffer[0], &PitchSetpoint, sizeof(int));
    memcpy(&ReplyBuffer[2], &PitchValue, sizeof(int));
    memcpy(&ReplyBuffer[4], &RollSetpoint, sizeof(int));
    memcpy(&ReplyBuffer[6], &RollValue, sizeof(int));
-   memcpy(&ReplyBuffer[8], &pitchPWM, sizeof(byte));
-   memcpy(&ReplyBuffer[9], &rollPWM, sizeof(byte));
-   memcpy(&ReplyBuffer[10], &simState, sizeof(byte));
-   memcpy(&ReplyBuffer[11], &kP_Pitch, sizeof(double));
-   memcpy(&ReplyBuffer[19], &kI_Pitch, sizeof(double));
-   memcpy(&ReplyBuffer[27], &kD_Pitch, sizeof(double));
-   memcpy(&ReplyBuffer[35], &kP_Roll, sizeof(double));
-   memcpy(&ReplyBuffer[43], &kI_Roll, sizeof(double));
-   memcpy(&ReplyBuffer[51], &kD_Roll, sizeof(double));
+   memcpy(&ReplyBuffer[8], &pitchPWM, sizeof(int));
+   memcpy(&ReplyBuffer[10], &rollPWM, sizeof(int));
+   memcpy(&ReplyBuffer[12], &simState, sizeof(byte));
+   memcpy(&ReplyBuffer[13], &kP_Pitch, sizeof(double));
+   memcpy(&ReplyBuffer[21], &kI_Pitch, sizeof(double));
+   memcpy(&ReplyBuffer[29], &kD_Pitch, sizeof(double));
+   memcpy(&ReplyBuffer[37], &kP_Roll, sizeof(double));
+   memcpy(&ReplyBuffer[45], &kI_Roll, sizeof(double));
+   memcpy(&ReplyBuffer[53], &kD_Roll, sizeof(double));
 
    Udp.beginPacket(ipOut, outPort);
    Udp.write(ReplyBuffer, bufferSize);
@@ -435,8 +430,7 @@ void endSimulation()
 void emergencyStop()
 {
    simState = emergency_stop;
-   analogWrite(motorPitchPin, 0);
-   analogWrite(motorRollPin, 0);
+   //DAC_1.clear();
 }
 
 int upTemp = 0;
