@@ -51,7 +51,7 @@ public:
 
    // value is a 6-bit 2's complement number and is in
    // increments of 1 LSB according to the data sheet.
-   void setFineGain(channelOption channel, byte value);
+   void setFineGain(channelOption channel, char value);
 
    // value is a 8-bit 2's complement number and is in crements
    // of 1/8 LSB.

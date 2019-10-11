@@ -2,6 +2,9 @@
 
 using namespace std;
 
+#define FINE_GAIN_MIN -32
+#define FINE_GAIN_MAX  31
+
 #define COARSE_GAIN_OPTION_1
 
 #define SPI_DAC_SETTINGS SPISettings(30000000/*84*/, MSBFIRST, SPI_MODE0)
@@ -53,8 +56,11 @@ void DAC::setCoarseGain(channelOption channel, coarseGainOption option)
    SPI.endTransaction();
 }
 
-void DAC::setFineGain(channelOption channel, byte value)
+void DAC::setFineGain(channelOption channel, char value)
 {
+   //value is 6-bit signed.
+   value = constrain(value, FINE_GAIN_MIN, FINE_GAIN_MAX);
+   value = ((value >> 2) & 0x32) | (value & 0x31);
    uint32_t cmd = W | REGISTER_FGAIN | channel | (value && 0x3F);
    SPI.beginTransaction(SPI_DAC_SETTINGS);
    transferCmd(cmd, SPI_LAST);

@@ -82,7 +82,6 @@ void readUDP();
 //void readSerialCommand();
 void readEncoderData();
 void computePID();
-void moveMotors();
 void report();
 
 void startSimulation();
@@ -170,7 +169,7 @@ void loop()
    case stopped:
       PID_P_Output = 0;
       PID_R_Output = 0;
-      moveMotors();
+      DAC_Sim.clear();
       break;
    case starting:
       // Balance
@@ -184,7 +183,7 @@ void loop()
       // Two Switches -> Emergency Stop
       // Panic Button -> End State
       computePID();
-      moveMotors();
+      DAC_Sim.setValues((int)PID_P_Output, (int)PID_R_Output, 0, 0);
       break;
    case ending:
       // Go to neutral position
@@ -277,6 +276,42 @@ void readUDP()
       memcpy(&kP_Roll, &packetBuffer[1], sizeof(double));
       memcpy(&kI_Roll, &packetBuffer[9], sizeof(double));
       memcpy(&kD_Roll, &packetBuffer[17], sizeof(double));
+   case 'G':
+
+      //Channel A - 0 - Pitch
+      //Channel B - 1 - Roll
+      //Channel C - 2 - Lift
+      //Channel D - 3 - ?Balance?
+      //Channel E - 4 - All
+
+      // Low - 0
+      // Med - 1
+      // High - 2
+
+      //update coarse gain
+      break;
+   case 'g':
+      //update fine gain
+
+      //Channel A - 0 - Pitch
+      //Channel B - 1 - Roll
+      //Channel C - 2 - Lift
+      //Channel D - 3 - ?Balance?
+      //Channel E - 4 - All
+
+      //Byte with range (-32, 31)
+      break;
+   case 'O':
+      //update offset
+
+      //Channel A - 0 - Pitch
+      //Channel B - 1 - Roll
+      //Channel C - 2 - Lift
+      //Channel D - 3 - ?Balance?
+      //Channel E - 4 - All
+
+      // signed byte
+      break;
    default:
       break;
    }
@@ -345,11 +380,6 @@ void computePID()
    PID_Roll.Compute();
 }
 
-void moveMotors()
-{
-   //DAC_Sim.setValues((int)PID_P_Output, (int)PID_R_Output, 0, 0);
-}
-
 //byte legend
 //0-1 Pitch Setpoint
 //2-3 Pitch Value
@@ -384,7 +414,7 @@ void report()
    memcpy(&ReplyBuffer[29], &kD_Pitch, sizeof(double));
    memcpy(&ReplyBuffer[37], &kP_Roll, sizeof(double));
    memcpy(&ReplyBuffer[45], &kI_Roll, sizeof(double));
-   memcpy(&ReplyBuffer[53], &kD_Roll, sizeof(double));
+   memcpy(&ReplyBuffer[53], &kD_Roll, sizeof(double)); 
 
    Udp.beginPacket(ipOut, outPort);
    Udp.write(ReplyBuffer, bufferSize);
