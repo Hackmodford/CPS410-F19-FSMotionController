@@ -18,6 +18,9 @@ using namespace std;
 #define encoderPitchBPin 23
 #define encoderRollAPin 24
 #define encoderRollBPin 25
+#define STOP_SWITCH_TOP_A_PIN 26
+#define STOP_SWITCH_TOP_B_PIN 27
+#define STOP_SWITCH_BOTTOM_PIN 28
 
 #define PITCH_ENCODER_MIN 0
 #define PITCH_ENCODER_MAX 12600    //105*120 and 360 degree
@@ -96,6 +99,10 @@ void setup()
    //test LEDS
    pinMode(7, OUTPUT);
    pinMode(6, OUTPUT);
+
+   pinMode(STOP_SWITCH_TOP_A_PIN, INPUT);
+   pinMode(STOP_SWITCH_TOP_B_PIN, INPUT);
+   pinMode(STOP_SWITCH_BOTTOM_PIN, INPUT);
 
    Serial.begin(115200);
 
@@ -230,7 +237,8 @@ void readUDP()
 {
 
    int packetSize = Udp.parsePacket();
-   if (packetSize == 0) return;
+   if (packetSize == 0)
+      return;
 
    // read the packet into packetBufffer
    Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
@@ -264,6 +272,11 @@ void readUDP()
       if (packetSize != 5)
       {
          Serial.println("Malformed move command");
+         break;
+      }
+      if (simState != running)
+      {
+         Serial.println("Ignoring move command. Simulator is not running.");
          break;
       }
       memcpy(&PitchSetpoint, &packetBuffer[1], sizeof(int));
@@ -460,8 +473,6 @@ void startSimulation()
       return;
    }
    simState = starting;
-   report();
-   delay(2000);
 }
 
 void endSimulation()
@@ -477,8 +488,6 @@ void endSimulation()
       return;
    }
    simState = ending;
-   report();
-   delay(2000);
 }
 
 void emergencyStop()
@@ -490,6 +499,15 @@ void emergencyStop()
 int upTemp = 0;
 bool moveUp()
 {
+   // int a = digitalRead(STOP_SWITCH_TOP_A_PIN);
+   // int b = digitalRead(STOP_SWITCH_TOP_B_PIN);
+   // if (a == HIGH || b == HIGH)
+   // {
+   //    //move up
+   // } else {
+   //    return true;
+   // }
+   // return false;
    //This function is incomplete.
    //just some code to simulate moving up.
    if (upTemp < 5000)
@@ -504,6 +522,24 @@ bool moveUp()
 int downTemp = 0;
 bool moveDown()
 {
+   // PitchSetpoint = 0;
+   // PitchSetpoint = 0;
+   // if (PitchValue != PitchSetpoint)
+   // {
+   //    //rotate to start position
+   //    computePID();
+   //    //PID_X_Output could be constrained so that it doesn't move too fast.
+   //    DAC_Sim.setValues((int)PID_P_Output, (int)PID_R_Output, 0, 0);
+   //    return false;
+   // }
+
+   // if (digitalRead(STOP_SWITCH_BOTTOM_PIN) == HIGH)
+   // {
+   //    // move down
+   // }
+   // return true;
+
+
    //This function is incomplete.
    //just some code to simulate moving down.
    if (downTemp < 5000)
