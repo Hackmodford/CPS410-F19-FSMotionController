@@ -7,26 +7,27 @@
 
 using namespace std;
 
-#define R               0x000000
-#define W               0x800000
+#define R 0x000000
+#define W 0x800000
 
-#define REGISTER_FUNC   0x000000
-#define REGISTER_DATA   0x100000
-#define REGISTER_CGAIN  0x180000
-#define REGISTER_FGAIN  0x200000
+#define REGISTER_FUNC 0x000000
+#define REGISTER_DATA 0x100000
+#define REGISTER_CGAIN 0x180000
+#define REGISTER_FGAIN 0x200000
 #define REGISTER_OFFSET 0x280000
 
-#define FUNC_NOP        0x000000
-#define FUNC_CLR        0x040000
-#define FUNC_LD         0x050000
+#define FUNC_NOP 0x000000
+#define FUNC_CLR 0x040000
+#define FUNC_LD 0x050000
 
-#define CHANNEL_A       0x000000
-#define CHANNEL_B       0x010000
-#define CHANNEL_C       0x020000
-#define CHANNEL_D       0x030000
-#define CHANNEL_ALL     0x040000
+#define CHANNEL_A 0x000000
+#define CHANNEL_B 0x010000
+#define CHANNEL_C 0x020000
+#define CHANNEL_D 0x030000
+#define CHANNEL_ALL 0x040000
 
-enum channelOption {
+enum channelOption
+{
    A = CHANNEL_A,
    B = CHANNEL_B,
    C = CHANNEL_C,
@@ -34,11 +35,15 @@ enum channelOption {
    All = CHANNEL_ALL
 };
 
-enum coarseGainOption {
+enum coarseGainOption
+{
    GAIN_LOW = 0x0,
    GAIN_MED = 0x1,
    GAIN_HIGH = 0x2
 };
+
+channelOption byteToChannelOption(byte x);
+coarseGainOption byteToCoarseGainOption(byte x);
 
 class DAC
 {

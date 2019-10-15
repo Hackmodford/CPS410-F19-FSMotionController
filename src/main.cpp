@@ -52,7 +52,7 @@ PID PID_Roll(&PID_R_Input, &PID_R_Output, &PID_R_Setpoint, kP_Roll, kI_Roll, kD_
 
 DAC DAC_Sim(SPI_DAC_PIN, 32, 33);
 
-byte mac[6]; // device mac address
+byte mac[6] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED}; // device mac address
 
 IPAddress ip;       // address to listen
 uint16_t localPort; // port to listen
@@ -116,15 +116,23 @@ void setup()
    if (!SD.begin(SPI_SD_PIN))
    {
       Serial.println("Card failed, or not present");
-      while (true)
-         ; //don't run...
+      //use default settings
+      ip = IPAddress(192, 168, 1, 6);
+      localPort = 8888;
+      ipOut = IPAddress(192, 168, 1, 5);
+      outPort = 8888;
+      kP_Pitch = 1;
+      kI_Pitch = 1;
+      kD_Pitch = 1;
+      kP_Roll = 1;
+      kI_Roll = 1;
+      kD_Roll = 1;
    }
    else
    {
       Serial.println("card initialized.");
+      loadConfiguration();
    }
-
-   loadConfiguration();
    setupUDP();
 }
 
@@ -169,7 +177,7 @@ void loop()
    case stopped:
       PID_P_Output = 0;
       PID_R_Output = 0;
-      DAC_Sim.clear();
+      //DAC_Sim.clear();
       break;
    case starting:
       // Balance
@@ -183,7 +191,7 @@ void loop()
       // Two Switches -> Emergency Stop
       // Panic Button -> End State
       computePID();
-      DAC_Sim.setValues((int)PID_P_Output, (int)PID_R_Output, 0, 0);
+      //DAC_Sim.setValues((int)PID_P_Output, (int)PID_R_Output, 0, 0);
       break;
    case ending:
       // Go to neutral position
@@ -222,8 +230,7 @@ void readUDP()
 {
 
    int packetSize = Udp.parsePacket();
-   if (packetSize == 0)
-      return;
+   if (packetSize == 0) return;
 
    // read the packet into packetBufffer
    Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
@@ -231,21 +238,28 @@ void readUDP()
    switch (packetBuffer[0])
    {
    case '0':
+   {
       //emergency stop
       emergencyStop();
       Serial.println("Received Emergency Stop Command");
       break;
+   }
    case 'S':
+   {
       //start
       startSimulation();
       Serial.println("Received Start Command");
       break;
+   }
    case 'E':
+   {
       //stop
       endSimulation();
       Serial.println("Received End Command");
       break;
+   }
    case 'M':
+   {
       //update set points
       if (packetSize != 5)
       {
@@ -255,7 +269,9 @@ void readUDP()
       memcpy(&PitchSetpoint, &packetBuffer[1], sizeof(int));
       memcpy(&RollSetpoint, &packetBuffer[3], sizeof(int));
       break;
+   }
    case '1':
+   {
       // update pitch pid values
       if (packetSize != 24)
       {
@@ -266,7 +282,9 @@ void readUDP()
       memcpy(&kI_Pitch, &packetBuffer[9], sizeof(double));
       memcpy(&kD_Pitch, &packetBuffer[17], sizeof(double));
       break;
+   }
    case '2':
+   {
       //update roll pid values
       if (packetSize != 24)
       {
@@ -276,44 +294,50 @@ void readUDP()
       memcpy(&kP_Roll, &packetBuffer[1], sizeof(double));
       memcpy(&kI_Roll, &packetBuffer[9], sizeof(double));
       memcpy(&kD_Roll, &packetBuffer[17], sizeof(double));
+      break;
+   }
    case 'G':
-
-      //Channel A - 0 - Pitch
-      //Channel B - 1 - Roll
-      //Channel C - 2 - Lift
-      //Channel D - 3 - ?Balance?
-      //Channel E - 4 - All
-
-      // Low - 0
-      // Med - 1
-      // High - 2
-
-      //update coarse gain
+   { //update coarse gain
+      //[command][channel][cg]
+      if (packetSize != 3)
+      {
+         Serial.println("Malformed set coarse gain command");
+         break;
+      }
+      channelOption channel = byteToChannelOption(packetBuffer[1]);
+      coarseGainOption option = byteToCoarseGainOption(packetBuffer[2]);
+      DAC_Sim.setCoarseGain(channel, option);
       break;
+   }
    case 'g':
-      //update fine gain
-
-      //Channel A - 0 - Pitch
-      //Channel B - 1 - Roll
-      //Channel C - 2 - Lift
-      //Channel D - 3 - ?Balance?
-      //Channel E - 4 - All
-
-      //Byte with range (-32, 31)
+   { //update fine gain
+      //[command][channel][fg]
+      if (packetSize != 3)
+      {
+         Serial.println("Malformed set fine gain command");
+         break;
+      }
+      channelOption channel = byteToChannelOption(packetBuffer[1]);
+      DAC_Sim.setFineGain(channel, packetBuffer[2]); //Byte with range (-32, 31)
       break;
+   }
    case 'O':
-      //update offset
-
-      //Channel A - 0 - Pitch
-      //Channel B - 1 - Roll
-      //Channel C - 2 - Lift
-      //Channel D - 3 - ?Balance?
-      //Channel E - 4 - All
-
-      // signed byte
+   { //update offset
+      //[command][channel][offset]
+      if (packetSize != 3)
+      {
+         Serial.println("Malformed set offset command");
+         break;
+      }
+      channelOption channel = byteToChannelOption(packetBuffer[1]);
+      DAC_Sim.setOffset(channel, packetBuffer[2]);
       break;
+   }
    default:
+   {
+      Serial.println("Received unknown command");
       break;
+   }
    }
 }
 
@@ -414,7 +438,7 @@ void report()
    memcpy(&ReplyBuffer[29], &kD_Pitch, sizeof(double));
    memcpy(&ReplyBuffer[37], &kP_Roll, sizeof(double));
    memcpy(&ReplyBuffer[45], &kI_Roll, sizeof(double));
-   memcpy(&ReplyBuffer[53], &kD_Roll, sizeof(double)); 
+   memcpy(&ReplyBuffer[53], &kD_Roll, sizeof(double));
 
    Udp.beginPacket(ipOut, outPort);
    Udp.write(ReplyBuffer, bufferSize);

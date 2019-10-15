@@ -2,5 +2,15 @@
    "terminal.integrated.env.osx": {
       "PATH": "/Users/hackmodford/.platformio/penv/bin:/Users/hackmodford/.platformio/penv:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/Apple/usr/bin:/Library/Apple/bin:/usr/local/share/dotnet:/opt/X11/bin:~/.dotnet/tools:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/Users/hackmodford/Library/Android/sdk/platform-tools:/Users/hackmodford/Library/Android/sdk/tools",
       "PLATFORMIO_CALLER": "vscode"
+   },
+   "files.associations": {
+      "optional": "cpp",
+      "istream": "cpp",
+      "ostream": "cpp",
+      "system_error": "cpp",
+      "array": "cpp",
+      "tuple": "cpp",
+      "type_traits": "cpp",
+      "utility": "cpp"
    }
 }

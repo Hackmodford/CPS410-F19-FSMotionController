@@ -13,6 +13,46 @@ int _csPin = 0;
 int _ldacPin = 0;
 int _clrPin = 0;
 
+channelOption byteToChannelOption(byte x)
+{
+   switch (x)
+   {
+   case 0:
+      return A;
+      break;
+   case 1:
+      return B;
+      break;
+   case 2:
+      return C;
+      break;
+   case 3:
+      return D;
+      break;
+   case 4:
+      return All;
+      break;
+   }
+   return A;
+}
+
+coarseGainOption byteToCoarseGainOption(byte x)
+{
+   switch (x)
+   {
+   case 0:
+      return GAIN_LOW;
+      break;
+   case 1:
+      return GAIN_MED;
+      break;
+   case 2:
+      return GAIN_HIGH;
+      break;
+   }
+   return GAIN_LOW;
+}
+
 DAC::DAC(int csPin, int ldacPin, int clrPin)
 {
    _csPin = csPin;
@@ -58,7 +98,7 @@ void DAC::setCoarseGain(channelOption channel, coarseGainOption option)
 
 void DAC::setFineGain(channelOption channel, char value)
 {
-   //value is 6-bit signed.
+   //value is converted to a 6-bit signed representation.
    value = constrain(value, FINE_GAIN_MIN, FINE_GAIN_MAX);
    value = ((value >> 2) & 0x32) | (value & 0x31);
    uint32_t cmd = W | REGISTER_FGAIN | channel | (value && 0x3F);
