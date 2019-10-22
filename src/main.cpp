@@ -30,6 +30,8 @@ using namespace std;
 #define ROLL_ENCODER_MAX 8640     //72*120 and 360 degree
 #define ROLL_ENCODER_180_DEG 4320 // 180 degree
 
+#define MAX_MANUAL_SPEED 328
+
 #define REPORT_INTERVAL 100 //report every tenth of a second
 long previousMillis = 0;    //holds the count for every loop pass
 
@@ -75,7 +77,8 @@ enum state
    starting = 1,
    running = 2,
    ending = 3,
-   emergency_stop = 99
+   emergency_stop = 99,
+   manual = 4
 };
 state simState;
 
@@ -93,6 +96,13 @@ void emergencyStop();
 
 bool moveUp();   //returns true when simulator is in top position.
 bool moveDown(); //returns true when simulator is in bottom position.
+
+void manualIncreasePitch();
+void manualDecreasePitch();
+void manualIncreaseRoll();
+void manualDecreaseRoll();
+void manualIncreaseLift();
+void manualDecreaseLift();
 
 void setup()
 {
@@ -215,6 +225,8 @@ void loop()
       // Ability to exit emergency stop.
       DAC_Sim.clear();
       break;
+   case manual:
+      break;
    }
 
    digitalWrite(7, simState != running); // red LED
@@ -284,6 +296,50 @@ void readUDP()
       }
       memcpy(&PitchSetpoint, &packetBuffer[1], sizeof(int));
       memcpy(&RollSetpoint, &packetBuffer[3], sizeof(int));
+      break;
+   }
+   case 'm':
+   {
+      if (packetSize == 2) {
+			switch (packetBuffer[1])
+			{
+				case 'P':
+				{
+					manualIncreasePitch();
+					break;
+				}
+				case 'p':
+				{
+					manualDecreasePitch();
+					break;
+				}
+				case 'R':
+				{
+					manualIncreaseRoll();
+					break;
+				}
+				case 'r':
+				{
+					manualDecreaseRoll();
+					break;
+				}
+				case 'L':
+				{
+					manualIncreaseLift();
+					break;
+				}
+				case 'l':
+				{
+					manualDecreaseLift();
+					break;
+				}
+				case 's':
+				{
+					DAC_Sim.clear();
+					break;
+				}
+			}
+      }
       break;
    }
    case '1':
@@ -495,8 +551,8 @@ void endSimulation()
 
 void emergencyStop()
 {
+	DAC_Sim.clear();
    simState = emergency_stop;
-   //DAC_1.clear();
 }
 
 int upTemp = 0;
@@ -551,4 +607,44 @@ bool moveDown()
    }
    downTemp = 0;
    return true;
+}
+
+void manualIncreasePitch()
+{
+	simState = manual;
+	PID_P_Output = MAX_MANUAL_SPEED; //update for reporting.
+	DAC_Sim.setValues(PID_P_Output, 0, 0, 0);
+}
+
+void manualDecreasePitch()
+{
+	simState = manual;
+	PID_P_Output = -MAX_MANUAL_SPEED; //update for reporting.
+	DAC_Sim.setValues(PID_P_Output, 0, 0, 0);
+}
+
+void manualIncreaseRoll()
+{
+	simState = manual;
+	PID_R_Output = MAX_MANUAL_SPEED; //update for reporting.
+	DAC_Sim.setValues(0, PID_R_Output, 0, 0);
+}
+
+void manualDecreaseRoll()
+{
+	simState = manual;
+	PID_R_Output = -MAX_MANUAL_SPEED; //update for reporting.
+	DAC_Sim.setValues(0, PID_R_Output, 0, 0);
+}
+
+void manualIncreaseLift()
+{
+	simState = manual;
+	DAC_Sim.setValues(0, 0, MAX_MANUAL_SPEED, 0);
+}
+
+void manualDecreaseLift()
+{
+	simState = manual;
+	DAC_Sim.setValues(0, 0, -MAX_MANUAL_SPEED, 0);
 }
