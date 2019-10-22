@@ -7,8 +7,8 @@
 
 using namespace std;
 
-#define R 0x000000
 #define W 0x800000
+#define R 0x000000
 
 #define REGISTER_FUNC 0x000000
 #define REGISTER_DATA 0x100000
@@ -49,6 +49,8 @@ class DAC
 {
 public:
    DAC(int csPin, int ldacPin, int clrPin);
+
+   void begin();
 
    void setValues(int valueA, int valueB, int valueC, int valueD);
 

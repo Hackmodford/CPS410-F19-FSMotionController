@@ -61,9 +61,14 @@ DAC::DAC(int csPin, int ldacPin, int clrPin)
 
    pinMode(_ldacPin, OUTPUT);
    pinMode(_clrPin, OUTPUT);
-
+   
    digitalWrite(_ldacPin, HIGH); //Load DAC pin for DAC. Make it LOW if not in use.
    digitalWrite(_clrPin, HIGH);  // Asynchronous clear pin for DAC. Make it HIGH if you are not using it
+}
+
+void DAC::begin()
+{
+   SPI.begin(_csPin);
 }
 
 void DAC::setValues(int valueA, int valueB, int valueC, int valueD)
@@ -75,11 +80,16 @@ void DAC::setValues(int valueA, int valueB, int valueC, int valueD)
    uint32_t dacCmd3 = W | REGISTER_DATA | CHANNEL_C | valueC;
    uint32_t dacCmd4 = W | REGISTER_DATA | CHANNEL_D | valueD;
 
+   Serial.println(dacCmd1);
+
    transferCmd(dacCmd1, SPI_CONTINUE);
    transferCmd(dacCmd2, SPI_CONTINUE);
    transferCmd(dacCmd3, SPI_CONTINUE);
-   transferCmd(dacCmd4, SPI_LAST);
+   transferCmd(dacCmd4, SPI_CONTINUE);
 
+   // uint32_t cmd = W | REGISTER_FUNC | FUNC_LD;
+   // transferCmd(cmd, SPI_LAST);
+   
    //triger simultaneous load
    digitalWrite(_ldacPin, LOW);
    delayMicroseconds(0.003);
@@ -133,7 +143,7 @@ void DAC::load()
 
 void DAC::transferCmd(uint32_t cmd, SPITransferMode mode)
 {
-   byte cmdBytes[3] = {};
+   byte cmdBytes[3];
    cmdToByteArray(cmd, cmdBytes);
    SPI.transfer(_csPin, cmdBytes[0], SPI_CONTINUE);
    SPI.transfer(_csPin, cmdBytes[1], SPI_CONTINUE);
@@ -142,7 +152,7 @@ void DAC::transferCmd(uint32_t cmd, SPITransferMode mode)
 
 void DAC::cmdToByteArray(int x, byte out[3])
 {
-   out[0] = ((byte)((x >> 16) & 0xFF));
-   out[0] = ((byte)((x >> 8) & 0xFF));
-   out[1] = ((byte)(x & 0xFF));
+   out[0] = (x >> 16) & 0xFF;
+   out[1] = (x >> 8)  & 0xFF;
+   out[2] = (x >> 0)  & 0xFF;
 }

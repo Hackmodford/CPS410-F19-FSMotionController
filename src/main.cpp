@@ -140,7 +140,9 @@ void setup()
       Serial.println("card initialized.");
       loadConfiguration();
    }
+   SD.end();
    setupUDP();
+   DAC_Sim.begin();
 }
 
 void loadConfiguration()
@@ -184,7 +186,7 @@ void loop()
    case stopped:
       PID_P_Output = 0;
       PID_R_Output = 0;
-      //DAC_Sim.clear();
+      DAC_Sim.clear();
       break;
    case starting:
       // Balance
@@ -198,7 +200,7 @@ void loop()
       // Two Switches -> Emergency Stop
       // Panic Button -> End State
       computePID();
-      //DAC_Sim.setValues((int)PID_P_Output, (int)PID_R_Output, 0, 0);
+      DAC_Sim.setValues((int)PID_P_Output, (int)PID_R_Output, 0, 0);
       break;
    case ending:
       // Go to neutral position
@@ -211,6 +213,7 @@ void loop()
    case emergency_stop:
       // No power to motors
       // Ability to exit emergency stop.
+      DAC_Sim.clear();
       break;
    }
 
@@ -538,7 +541,6 @@ bool moveDown()
    //    // move down
    // }
    // return true;
-
 
    //This function is incomplete.
    //just some code to simulate moving down.
