@@ -55,7 +55,7 @@ Encoder EncoderRoll(encoderRollAPin, encoderRollBPin);
 PID PID_Pitch(&PID_P_Input, &PID_P_Output, &PID_P_Setpoint, kP_Pitch, kI_Pitch, kD_Pitch, REVERSE);
 PID PID_Roll(&PID_R_Input, &PID_R_Output, &PID_R_Setpoint, kP_Roll, kI_Roll, kD_Roll, REVERSE);
 
-DAC DAC_Sim(SPI_DAC_PIN, 32, 33);
+DAC DAC_Sim(SPI_DAC_PIN);
 
 byte mac[6] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED}; // device mac address
 
@@ -210,7 +210,10 @@ void loop()
       // Two Switches -> Emergency Stop
       // Panic Button -> End State
       computePID();
-      DAC_Sim.setValues((int)PID_P_Output, (int)PID_R_Output, 0, 0);
+      DAC_Sim.setChannel(A, (int)PID_P_Output);
+      DAC_Sim.setChannel(B, (int)PID_R_Output);
+      DAC_Sim.setChannel(C, 0);
+      DAC_Sim.setChannel(D, 0);
       break;
    case ending:
       // Go to neutral position
@@ -613,38 +616,38 @@ void manualIncreasePitch()
 {
 	simState = manual;
 	PID_P_Output = MAX_MANUAL_SPEED; //update for reporting.
-	DAC_Sim.setValues(PID_P_Output, 0, 0, 0);
+   DAC_Sim.setChannel(A, PID_P_Output);
 }
 
 void manualDecreasePitch()
 {
 	simState = manual;
 	PID_P_Output = -MAX_MANUAL_SPEED; //update for reporting.
-	DAC_Sim.setValues(PID_P_Output, 0, 0, 0);
+   DAC_Sim.setChannel(A, PID_P_Output);
 }
 
 void manualIncreaseRoll()
 {
 	simState = manual;
 	PID_R_Output = MAX_MANUAL_SPEED; //update for reporting.
-	DAC_Sim.setValues(0, PID_R_Output, 0, 0);
+   DAC_Sim.setChannel(B, PID_R_Output);
 }
 
 void manualDecreaseRoll()
 {
 	simState = manual;
 	PID_R_Output = -MAX_MANUAL_SPEED; //update for reporting.
-	DAC_Sim.setValues(0, PID_R_Output, 0, 0);
+   DAC_Sim.setChannel(B, PID_R_Output);
 }
 
 void manualIncreaseLift()
 {
 	simState = manual;
-	DAC_Sim.setValues(0, 0, MAX_MANUAL_SPEED, 0);
+   DAC_Sim.setChannel(C, MAX_MANUAL_SPEED);
 }
 
 void manualDecreaseLift()
 {
 	simState = manual;
-	DAC_Sim.setValues(0, 0, -MAX_MANUAL_SPEED, 0);
+   DAC_Sim.setChannel(C, -MAX_MANUAL_SPEED);
 }

@@ -7,8 +7,8 @@
 
 using namespace std;
 
-#define W 0x800000
-#define R 0x000000
+#define W 0x000000 //write
+#define R 0x800000 //read
 
 #define REGISTER_FUNC 0x000000
 #define REGISTER_DATA 0x100000
@@ -48,12 +48,10 @@ coarseGainOption byteToCoarseGainOption(byte x);
 class DAC
 {
 public:
-   DAC(int csPin, int ldacPin, int clrPin);
-
+   DAC(int csPin);
+   
    void begin();
-
-   void setValues(int valueA, int valueB, int valueC, int valueD);
-
+   void setChannel(channelOption channel, int value);
    void setCoarseGain(channelOption channel, coarseGainOption option);
 
    // value is a 6-bit 2's complement number and is in
@@ -69,7 +67,7 @@ public:
 
 private:
    void cmdToByteArray(int x, byte out[3]);
-   void transferCmd(uint32_t cmd, SPITransferMode mode);
+   void transferCmd(uint32_t cmd);
 };
 
 #endif //FSMOTIONCONTROLLER_DAC_H
