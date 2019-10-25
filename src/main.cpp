@@ -22,6 +22,14 @@ using namespace std;
 #define STOP_SWITCH_TOP_B_PIN 27
 #define STOP_SWITCH_BOTTOM_PIN 28
 
+#define BTN_P_INCREASE_PIN 30
+#define BTN_P_DECREASE_PIN 31
+#define BTN_R_INCREASE_PIN 32
+#define BTN_R_DECREASE_PIN 33
+#define BTN_L_INCREASE_PIN 34
+#define BTN_L_DECREASE_PIN 35
+#define BTN_ESTOP_PIN 36
+
 #define PITCH_ENCODER_MIN 0
 #define PITCH_ENCODER_MAX 12600    //105*120 and 360 degree
 #define PITCH_ENCODER_180_DEG 6300 // 180 degree
@@ -29,6 +37,7 @@ using namespace std;
 #define ROLL_ENCODER_MIN 0
 #define ROLL_ENCODER_MAX 8640     //72*120 and 360 degree
 #define ROLL_ENCODER_180_DEG 4320 // 180 degree
+
 
 #define MAX_MANUAL_SPEED 328
 
@@ -85,6 +94,8 @@ state simState;
 void loadConfiguration();
 void setupUDP();
 void readUDP();
+void readButtons();
+int getPolarityFromButtons(int positivePin, int negativePin);
 //void readSerialCommand();
 void readEncoderData();
 void computePID();
@@ -104,11 +115,33 @@ void manualDecreaseRoll();
 void manualIncreaseLift();
 void manualDecreaseLift();
 
+
 void setup()
 {
    //test LEDS
    pinMode(7, OUTPUT);
    pinMode(6, OUTPUT);
+
+   pinMode(BTN_P_INCREASE_PIN, INPUT);
+   digitalWrite(BTN_P_INCREASE_PIN, HIGH);
+
+   pinMode(BTN_P_DECREASE_PIN, INPUT);
+   digitalWrite(BTN_P_DECREASE_PIN, HIGH);
+
+   pinMode(BTN_R_INCREASE_PIN, INPUT);
+   digitalWrite(BTN_R_INCREASE_PIN, HIGH);
+
+   pinMode(BTN_R_DECREASE_PIN, INPUT);
+   digitalWrite(BTN_R_DECREASE_PIN, HIGH);
+
+   pinMode(BTN_L_INCREASE_PIN, INPUT);
+   digitalWrite(BTN_L_INCREASE_PIN, HIGH);
+
+   pinMode(BTN_L_DECREASE_PIN, INPUT);
+   digitalWrite(BTN_L_DECREASE_PIN, HIGH);
+
+   pinMode(BTN_ESTOP_PIN, INPUT);
+   digitalWrite(BTN_ESTOP_PIN, HIGH);
 
    pinMode(STOP_SWITCH_TOP_A_PIN, INPUT);
    pinMode(STOP_SWITCH_TOP_B_PIN, INPUT);
@@ -130,7 +163,13 @@ void setup()
 
    //initializing the SD card
    Serial.print("Initializing SD card...");
-   if (!SD.begin(SPI_SD_PIN))
+   
+   if (SD.begin(SPI_SD_PIN))
+   {
+      Serial.println("card initialized.");
+      loadConfiguration();
+   }
+   else
    {
       Serial.println("Card failed, or not present");
       //use default settings
@@ -145,12 +184,7 @@ void setup()
       kI_Roll = 1;
       kD_Roll = 1;
    }
-   else
-   {
-      Serial.println("card initialized.");
-      loadConfiguration();
-   }
-   SD.end();
+
    setupUDP();
    DAC_Sim.begin();
 }
@@ -190,6 +224,7 @@ void loop()
 {
    readUDP();         //where we want to go.
    readEncoderData(); //where we currently are.
+   readButtons();
 
    switch (simState)
    {
@@ -303,45 +338,46 @@ void readUDP()
    }
    case 'm':
    {
-      if (packetSize == 2) {
-			switch (packetBuffer[1])
-			{
-				case 'P':
-				{
-					manualIncreasePitch();
-					break;
-				}
-				case 'p':
-				{
-					manualDecreasePitch();
-					break;
-				}
-				case 'R':
-				{
-					manualIncreaseRoll();
-					break;
-				}
-				case 'r':
-				{
-					manualDecreaseRoll();
-					break;
-				}
-				case 'L':
-				{
-					manualIncreaseLift();
-					break;
-				}
-				case 'l':
-				{
-					manualDecreaseLift();
-					break;
-				}
-				case 's':
-				{
-					DAC_Sim.clear();
-					break;
-				}
-			}
+      if (packetSize == 2)
+      {
+         switch (packetBuffer[1])
+         {
+         case 'P':
+         {
+            manualIncreasePitch();
+            break;
+         }
+         case 'p':
+         {
+            manualDecreasePitch();
+            break;
+         }
+         case 'R':
+         {
+            manualIncreaseRoll();
+            break;
+         }
+         case 'r':
+         {
+            manualDecreaseRoll();
+            break;
+         }
+         case 'L':
+         {
+            manualIncreaseLift();
+            break;
+         }
+         case 'l':
+         {
+            manualDecreaseLift();
+            break;
+         }
+         case 's':
+         {
+            DAC_Sim.clear();
+            break;
+         }
+         }
       }
       break;
    }
@@ -432,6 +468,54 @@ void readEncoderData()
    if (RollValue < 0)
       RollValue += ROLL_ENCODER_MAX;
    RollValue %= ROLL_ENCODER_MAX;
+}
+
+void readButtons()
+{
+   if (digitalRead(BTN_ESTOP_PIN)) {
+      emergencyStop();
+      return;
+   }
+
+   // getPolarity returns either 1, -1, or 0
+   int lPolarity = getPolarityFromButtons(BTN_P_INCREASE_PIN, BTN_P_DECREASE_PIN);
+   //Simulator ignores pitch/roll if lifting/lowering
+   if (lPolarity != 0) {
+      //Todo: check set switches
+      simState = manual;
+      DAC_Sim.setChannel(C, MAX_MANUAL_SPEED * lPolarity);
+      return;
+   } else if (simState == manual) {
+      DAC_Sim.setChannel(C, 0);
+   }
+
+   int pPolarity = getPolarityFromButtons(BTN_P_INCREASE_PIN, BTN_P_DECREASE_PIN);
+   int rPolarity = getPolarityFromButtons(BTN_P_INCREASE_PIN, BTN_P_DECREASE_PIN); 
+
+   if (pPolarity != 0) {
+      simState = manual;
+      DAC_Sim.setChannel(A, MAX_MANUAL_SPEED * pPolarity);
+   } else if (simState == manual) {
+      DAC_Sim.setChannel(A, 0);
+   }
+
+   if (rPolarity != 0) {
+      simState = manual;
+      DAC_Sim.setChannel(B, MAX_MANUAL_SPEED * rPolarity);
+   } else if (simState == manual) {
+      DAC_Sim.setChannel(B, 0);
+   }
+}
+
+int getPolarityFromButtons(int positivePin, int negativePin)
+{
+   if (!digitalRead(positivePin) && digitalRead(negativePin)) {
+      return -1;
+   }
+   if (digitalRead(positivePin) && !digitalRead(negativePin)) {
+      return 1;
+   }
+   return 0;
 }
 
 /**
@@ -554,7 +638,7 @@ void endSimulation()
 
 void emergencyStop()
 {
-	DAC_Sim.clear();
+   DAC_Sim.clear();
    simState = emergency_stop;
 }
 
@@ -614,40 +698,40 @@ bool moveDown()
 
 void manualIncreasePitch()
 {
-	simState = manual;
-	PID_P_Output = MAX_MANUAL_SPEED; //update for reporting.
+   simState = manual;
+   PID_P_Output = MAX_MANUAL_SPEED; //update for reporting.
    DAC_Sim.setChannel(A, PID_P_Output);
 }
 
 void manualDecreasePitch()
 {
-	simState = manual;
-	PID_P_Output = -MAX_MANUAL_SPEED; //update for reporting.
+   simState = manual;
+   PID_P_Output = -MAX_MANUAL_SPEED; //update for reporting.
    DAC_Sim.setChannel(A, PID_P_Output);
 }
 
 void manualIncreaseRoll()
 {
-	simState = manual;
-	PID_R_Output = MAX_MANUAL_SPEED; //update for reporting.
+   simState = manual;
+   PID_R_Output = MAX_MANUAL_SPEED; //update for reporting.
    DAC_Sim.setChannel(B, PID_R_Output);
 }
 
 void manualDecreaseRoll()
 {
-	simState = manual;
-	PID_R_Output = -MAX_MANUAL_SPEED; //update for reporting.
+   simState = manual;
+   PID_R_Output = -MAX_MANUAL_SPEED; //update for reporting.
    DAC_Sim.setChannel(B, PID_R_Output);
 }
 
 void manualIncreaseLift()
 {
-	simState = manual;
+   simState = manual;
    DAC_Sim.setChannel(C, MAX_MANUAL_SPEED);
 }
 
 void manualDecreaseLift()
 {
-	simState = manual;
+   simState = manual;
    DAC_Sim.setChannel(C, -MAX_MANUAL_SPEED);
 }
