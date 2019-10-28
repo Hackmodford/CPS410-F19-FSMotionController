@@ -15,10 +15,12 @@ using namespace std;
 #define SPI_SD_PIN 4
 #define SPI_ETHERNET_PIN 10
 #define SPI_DAC_PIN 52
+
 #define encoderPitchAPin 22
 #define encoderPitchBPin 23
 #define encoderRollAPin 24
 #define encoderRollBPin 25
+
 #define STOP_SWITCH_TOP_A_PIN 26
 #define STOP_SWITCH_TOP_B_PIN 27
 #define STOP_SWITCH_BOTTOM_PIN 28
@@ -106,13 +108,13 @@ void emergencyStop();
 bool moveUp();   //returns true when simulator is in top position.
 bool moveDown(); //returns true when simulator is in bottom position.
 
-void increasePitchCallback(Button* button);
-void decreasePitchCallback(Button* button);
-void increaseRollCallback(Button* button);
-void decreaseRollCallback(Button* button);
-void increaseLiftCallback(Button* button);
-void decreaseLiftCallback(Button* button);
-void emergencyStopCallback(Button* button);
+void increasePitchCallback(Button *button);
+void decreasePitchCallback(Button *button);
+void increaseRollCallback(Button *button);
+void decreaseRollCallback(Button *button);
+void increaseLiftCallback(Button *button);
+void decreaseLiftCallback(Button *button);
+void emergencyStopCallback(Button *button);
 
 void manualIncreasePitch();
 void manualDecreasePitch();
@@ -228,6 +230,10 @@ void loop()
    case starting:
       // Balance
       // Raise
+      PID_P_Output = 0;
+      PID_R_Output = 0;
+      DAC_Sim.setChannel(A, 0);
+      DAC_Sim.setChannel(B, 0);
       if (moveUp())
       {
          simState = running;
@@ -245,6 +251,10 @@ void loop()
    case ending:
       // Go to neutral position
       // Lower
+      PID_P_Output = 0;
+      PID_R_Output = 0;
+      DAC_Sim.setChannel(A, 0);
+      DAC_Sim.setChannel(B, 0);
       if (moveDown())
       {
          simState = stopped;
@@ -470,7 +480,8 @@ void readButtons()
    buttonLiftIncrease.read();
    buttonLiftDecrease.read();
 
-   if (buttonLiftIncrease.pressed || buttonLiftDecrease.pressed) {
+   if (buttonLiftIncrease.pressed || buttonLiftDecrease.pressed)
+   {
       //ignore other movement if lifting/lowering.
       return;
    }
@@ -658,7 +669,7 @@ bool moveDown()
    return true;
 }
 
-void emergencyStopCallback(Button* button)
+void emergencyStopCallback(Button *button)
 {
    if (button->pressed)
    {
@@ -666,60 +677,78 @@ void emergencyStopCallback(Button* button)
    }
 }
 
-void increasePitchCallback(Button* button)
+void increasePitchCallback(Button *button)
 {
-   if (button->pressed) {
+   if (button->pressed)
+   {
       manualIncreasePitch();
-   } else {
+   }
+   else
+   {
       PID_P_Output = 0;
       DAC_Sim.setChannel(A, PID_P_Output);
    }
 }
 
-void decreasePitchCallback(Button* button)
+void decreasePitchCallback(Button *button)
 {
-   if (button->pressed) {
+   if (button->pressed)
+   {
       manualDecreasePitch();
-   } else {
+   }
+   else
+   {
       PID_P_Output = 0;
       DAC_Sim.setChannel(A, PID_P_Output);
    }
 }
 
-void increaseRollCallback(Button* button)
+void increaseRollCallback(Button *button)
 {
-   if (button->pressed) {
+   if (button->pressed)
+   {
       manualIncreaseRoll();
-   } else {
+   }
+   else
+   {
       PID_R_Output = 0;
       DAC_Sim.setChannel(B, PID_R_Output);
    }
 }
 
-void decreaseRollCallback(Button* button)
+void decreaseRollCallback(Button *button)
 {
-   if (button->pressed) {
+   if (button->pressed)
+   {
       manualDecreaseRoll();
-   } else {
+   }
+   else
+   {
       PID_R_Output = 0;
       DAC_Sim.setChannel(B, PID_R_Output);
    }
 }
 
-void increaseLiftCallback(Button* button)
+void increaseLiftCallback(Button *button)
 {
-   if (button->pressed) {
+   if (button->pressed)
+   {
       manualIncreaseLift();
-   } else {
+   }
+   else
+   {
       DAC_Sim.setChannel(C, 0);
    }
 }
 
-void decreaseLiftCallback(Button* button)
+void decreaseLiftCallback(Button *button)
 {
-   if (button->pressed) {
+   if (button->pressed)
+   {
       manualDecreaseLift();
-   } else {
+   }
+   else
+   {
       DAC_Sim.setChannel(C, 0);
    }
 }
