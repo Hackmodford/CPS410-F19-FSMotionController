@@ -8,6 +8,7 @@
 
 #include "config.h"
 #include "DAC.h"
+#include "Button.h"
 
 using namespace std;
 
@@ -38,8 +39,7 @@ using namespace std;
 #define ROLL_ENCODER_MAX 8640     //72*120 and 360 degree
 #define ROLL_ENCODER_180_DEG 4320 // 180 degree
 
-
-#define MAX_MANUAL_SPEED 328
+#define MAX_MANUAL_SPEED 3400
 
 #define REPORT_INTERVAL 100 //report every tenth of a second
 long previousMillis = 0;    //holds the count for every loop pass
@@ -95,8 +95,6 @@ void loadConfiguration();
 void setupUDP();
 void readUDP();
 void readButtons();
-int getPolarityFromButtons(int positivePin, int negativePin);
-//void readSerialCommand();
 void readEncoderData();
 void computePID();
 void report();
@@ -108,6 +106,14 @@ void emergencyStop();
 bool moveUp();   //returns true when simulator is in top position.
 bool moveDown(); //returns true when simulator is in bottom position.
 
+void increasePitchCallback(Button* button);
+void decreasePitchCallback(Button* button);
+void increaseRollCallback(Button* button);
+void decreaseRollCallback(Button* button);
+void increaseLiftCallback(Button* button);
+void decreaseLiftCallback(Button* button);
+void emergencyStopCallback(Button* button);
+
 void manualIncreasePitch();
 void manualDecreasePitch();
 void manualIncreaseRoll();
@@ -115,33 +121,19 @@ void manualDecreaseRoll();
 void manualIncreaseLift();
 void manualDecreaseLift();
 
+Button buttonPitchIncrease = Button(BTN_P_INCREASE_PIN, &increasePitchCallback);
+Button buttonPitchDecrease = Button(BTN_P_DECREASE_PIN, &decreasePitchCallback);
+Button buttonRollIncrease = Button(BTN_R_INCREASE_PIN, &increaseRollCallback);
+Button buttonRollDecrease = Button(BTN_R_DECREASE_PIN, &decreaseRollCallback);
+Button buttonLiftIncrease = Button(BTN_L_INCREASE_PIN, &increaseLiftCallback);
+Button buttonLiftDecrease = Button(BTN_L_DECREASE_PIN, &decreaseLiftCallback);
+Button buttonEmergencyStop = Button(BTN_ESTOP_PIN, &emergencyStopCallback);
 
 void setup()
 {
    //test LEDS
    pinMode(7, OUTPUT);
    pinMode(6, OUTPUT);
-
-   pinMode(BTN_P_INCREASE_PIN, INPUT);
-   digitalWrite(BTN_P_INCREASE_PIN, HIGH);
-
-   pinMode(BTN_P_DECREASE_PIN, INPUT);
-   digitalWrite(BTN_P_DECREASE_PIN, HIGH);
-
-   pinMode(BTN_R_INCREASE_PIN, INPUT);
-   digitalWrite(BTN_R_INCREASE_PIN, HIGH);
-
-   pinMode(BTN_R_DECREASE_PIN, INPUT);
-   digitalWrite(BTN_R_DECREASE_PIN, HIGH);
-
-   pinMode(BTN_L_INCREASE_PIN, INPUT);
-   digitalWrite(BTN_L_INCREASE_PIN, HIGH);
-
-   pinMode(BTN_L_DECREASE_PIN, INPUT);
-   digitalWrite(BTN_L_DECREASE_PIN, HIGH);
-
-   pinMode(BTN_ESTOP_PIN, INPUT);
-   digitalWrite(BTN_ESTOP_PIN, HIGH);
 
    pinMode(STOP_SWITCH_TOP_A_PIN, INPUT);
    pinMode(STOP_SWITCH_TOP_B_PIN, INPUT);
@@ -222,9 +214,9 @@ void setupUDP()
 
 void loop()
 {
+   readButtons();
    readUDP();         //where we want to go.
    readEncoderData(); //where we currently are.
-   readButtons();
 
    switch (simState)
    {
@@ -472,50 +464,20 @@ void readEncoderData()
 
 void readButtons()
 {
-   if (digitalRead(BTN_ESTOP_PIN)) {
-      emergencyStop();
+
+   buttonEmergencyStop.read();
+
+   buttonLiftIncrease.read();
+   buttonLiftDecrease.read();
+
+   if (buttonLiftIncrease.pressed || buttonLiftDecrease.pressed) {
+      //ignore other movement if lifting/lowering.
       return;
    }
-
-   // getPolarity returns either 1, -1, or 0
-   int lPolarity = getPolarityFromButtons(BTN_P_INCREASE_PIN, BTN_P_DECREASE_PIN);
-   //Simulator ignores pitch/roll if lifting/lowering
-   if (lPolarity != 0) {
-      //Todo: check set switches
-      simState = manual;
-      DAC_Sim.setChannel(C, MAX_MANUAL_SPEED * lPolarity);
-      return;
-   } else if (simState == manual) {
-      DAC_Sim.setChannel(C, 0);
-   }
-
-   int pPolarity = getPolarityFromButtons(BTN_P_INCREASE_PIN, BTN_P_DECREASE_PIN);
-   int rPolarity = getPolarityFromButtons(BTN_P_INCREASE_PIN, BTN_P_DECREASE_PIN); 
-
-   if (pPolarity != 0) {
-      simState = manual;
-      DAC_Sim.setChannel(A, MAX_MANUAL_SPEED * pPolarity);
-   } else if (simState == manual) {
-      DAC_Sim.setChannel(A, 0);
-   }
-
-   if (rPolarity != 0) {
-      simState = manual;
-      DAC_Sim.setChannel(B, MAX_MANUAL_SPEED * rPolarity);
-   } else if (simState == manual) {
-      DAC_Sim.setChannel(B, 0);
-   }
-}
-
-int getPolarityFromButtons(int positivePin, int negativePin)
-{
-   if (!digitalRead(positivePin) && digitalRead(negativePin)) {
-      return -1;
-   }
-   if (digitalRead(positivePin) && !digitalRead(negativePin)) {
-      return 1;
-   }
-   return 0;
+   buttonPitchIncrease.read();
+   buttonPitchDecrease.read();
+   buttonRollIncrease.read();
+   buttonRollDecrease.read();
 }
 
 /**
@@ -694,6 +656,72 @@ bool moveDown()
    }
    downTemp = 0;
    return true;
+}
+
+void emergencyStopCallback(Button* button)
+{
+   if (button->pressed)
+   {
+      emergencyStop();
+   }
+}
+
+void increasePitchCallback(Button* button)
+{
+   if (button->pressed) {
+      manualIncreasePitch();
+   } else {
+      PID_P_Output = 0;
+      DAC_Sim.setChannel(A, PID_P_Output);
+   }
+}
+
+void decreasePitchCallback(Button* button)
+{
+   if (button->pressed) {
+      manualDecreasePitch();
+   } else {
+      PID_P_Output = 0;
+      DAC_Sim.setChannel(A, PID_P_Output);
+   }
+}
+
+void increaseRollCallback(Button* button)
+{
+   if (button->pressed) {
+      manualIncreaseRoll();
+   } else {
+      PID_R_Output = 0;
+      DAC_Sim.setChannel(B, PID_R_Output);
+   }
+}
+
+void decreaseRollCallback(Button* button)
+{
+   if (button->pressed) {
+      manualDecreaseRoll();
+   } else {
+      PID_R_Output = 0;
+      DAC_Sim.setChannel(B, PID_R_Output);
+   }
+}
+
+void increaseLiftCallback(Button* button)
+{
+   if (button->pressed) {
+      manualIncreaseLift();
+   } else {
+      DAC_Sim.setChannel(C, 0);
+   }
+}
+
+void decreaseLiftCallback(Button* button)
+{
+   if (button->pressed) {
+      manualDecreaseLift();
+   } else {
+      DAC_Sim.setChannel(C, 0);
+   }
 }
 
 void manualIncreasePitch()
