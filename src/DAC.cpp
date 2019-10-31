@@ -63,11 +63,60 @@ void DAC::begin()
    SPI.setDataMode(_csPin, SPI_MODE1); //This should be 3 for the AD7732
 }
 
+void DAC::setChannelLimit(channelOption channel, int value)
+{
+   switch (channel)
+   {
+   case A:
+      maxChannelALimit = value;
+      break;
+   case B:
+      maxChannelBLimit = value;
+      break;
+   case C:
+      maxChannelCLimit = value;
+      break;
+   case D:
+      maxChannelDLimit = value;
+      break;
+   case All:
+      maxChannelALimit = value;
+      maxChannelBLimit = value;
+      maxChannelCLimit = value;
+      maxChannelDLimit = value;
+      break;
+   }
+}
+
+int DAC::getChannelLimit(channelOption channel)
+{
+   switch (channel)
+   {
+   case A:
+      return maxChannelALimit;
+   case B:
+      return maxChannelBLimit;
+   case C:
+      return maxChannelCLimit;
+   case D:
+      return maxChannelDLimit;
+   case All:
+      return 0;
+   }
+   return 0;
+}
+
 void DAC::setChannel(channelOption channel, int value)
 {
    //The bitmask for the values is necessary because of the conversion
    //from signed to unsigned. We want the actual bits, that a fancy
    //conversion to an unsigned 32 bit number.
+   if (value > 0) {
+      value = min(value, getChannelLimit(channel));
+   } else if (value < 0) {
+      value = max(value, -getChannelLimit(channel));
+   }
+
    uint32_t cmd = W | REGISTER_DATA | channel | (value & 0xFFFF);
    transferCmd(cmd);
 }

@@ -1,6 +1,8 @@
 #include "Arduino.h"
 #include "Button.h"
 
+using namespace std;
+
 Button::Button(int PIN, void (*pCallbackFunction)(Button*))
 {
   pin = PIN;

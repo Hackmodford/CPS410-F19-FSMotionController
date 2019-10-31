@@ -1,14 +1,15 @@
 //#pragma once
 #include <Arduino.h>
-#include <PID_v1.h>
 #include <Encoder.h>
 #include <Ethernet.h>
 #include <EthernetUdp.h>
 #include <SD.h>
 
-#include "config.h"
+#include "Config.h"
 #include "DAC.h"
 #include "Button.h"
+#include "MotionController.h"
+#include "LoopTimer.h"
 
 using namespace std;
 
@@ -33,40 +34,15 @@ using namespace std;
 #define BTN_L_DECREASE_PIN 35
 #define BTN_ESTOP_PIN 36
 
-#define PITCH_ENCODER_MIN 0
-#define PITCH_ENCODER_MAX 12600    //105*120 and 360 degree
-#define PITCH_ENCODER_180_DEG 6300 // 180 degree
-
-#define ROLL_ENCODER_MIN 0
-#define ROLL_ENCODER_MAX 8640     //72*120 and 360 degree
-#define ROLL_ENCODER_180_DEG 4320 // 180 degree
-
-#define MAX_MANUAL_SPEED 3400
-
-#define REPORT_INTERVAL 100 //report every tenth of a second
-long previousMillis = 0;    //holds the count for every loop pass
-
-int PitchSetpoint = 0;
-int PitchValue = 0;
-double kP_Pitch = 1;
-double kI_Pitch = 1;
-double kD_Pitch = 1;
-double PID_P_Setpoint, PID_P_Input, PID_P_Output;
-
-int RollSetpoint = 0;
-int RollValue = 0;
-double kP_Roll = 1;
-double kI_Roll = 1;
-double kD_Roll = 1;
-double PID_R_Setpoint, PID_R_Input, PID_R_Output;
+//A timer to report stats ever 100 miliseconds.
+LoopTimer reportTimer(100);
 
 Encoder EncoderPitch(encoderPitchAPin, encoderPitchBPin);
 Encoder EncoderRoll(encoderRollAPin, encoderRollBPin);
 
-PID PID_Pitch(&PID_P_Input, &PID_P_Output, &PID_P_Setpoint, kP_Pitch, kI_Pitch, kD_Pitch, REVERSE);
-PID PID_Roll(&PID_R_Input, &PID_R_Output, &PID_R_Setpoint, kP_Roll, kI_Roll, kD_Roll, REVERSE);
-
 DAC DAC_Sim(SPI_DAC_PIN);
+
+MotionController mc(&DAC_Sim, &EncoderPitch, &EncoderRoll);
 
 byte mac[6] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED}; // device mac address
 
@@ -82,31 +58,11 @@ char packetBuffer[UDP_TX_PACKET_MAX_SIZE]; // buffer to hold incoming packet
 // An EthernetUDP instance to let us send and receive packets over UDP
 EthernetUDP Udp;
 
-enum state
-{
-   stopped = 0,
-   starting = 1,
-   running = 2,
-   ending = 3,
-   emergency_stop = 99,
-   manual = 4
-};
-state simState;
-
 void loadConfiguration();
 void setupUDP();
 void readUDP();
 void readButtons();
-void readEncoderData();
-void computePID();
 void report();
-
-void startSimulation();
-void endSimulation();
-void emergencyStop();
-
-bool moveUp();   //returns true when simulator is in top position.
-bool moveDown(); //returns true when simulator is in bottom position.
 
 void increasePitchCallback(Button *button);
 void decreasePitchCallback(Button *button);
@@ -115,13 +71,6 @@ void decreaseRollCallback(Button *button);
 void increaseLiftCallback(Button *button);
 void decreaseLiftCallback(Button *button);
 void emergencyStopCallback(Button *button);
-
-void manualIncreasePitch();
-void manualDecreasePitch();
-void manualIncreaseRoll();
-void manualDecreaseRoll();
-void manualIncreaseLift();
-void manualDecreaseLift();
 
 Button buttonPitchIncrease = Button(BTN_P_INCREASE_PIN, &increasePitchCallback);
 Button buttonPitchDecrease = Button(BTN_P_DECREASE_PIN, &decreasePitchCallback);
@@ -137,23 +86,11 @@ void setup()
    pinMode(7, OUTPUT);
    pinMode(6, OUTPUT);
 
-   pinMode(STOP_SWITCH_TOP_A_PIN, INPUT);
-   pinMode(STOP_SWITCH_TOP_B_PIN, INPUT);
-   pinMode(STOP_SWITCH_BOTTOM_PIN, INPUT);
+   // pinMode(STOP_SWITCH_TOP_A_PIN, INPUT);
+   // pinMode(STOP_SWITCH_TOP_B_PIN, INPUT);
+   // pinMode(STOP_SWITCH_BOTTOM_PIN, INPUT);
 
    Serial.begin(115200);
-
-   PitchSetpoint = 0;
-   RollSetpoint = 0;
-   simState = stopped;
-
-   // Use negative min to allow PID calcuation to reverse motor.
-   // But keep range of 0-255
-   PID_Pitch.SetOutputLimits(INT16_MIN, INT16_MAX);
-   PID_Roll.SetOutputLimits(INT16_MIN, INT16_MAX);
-
-   PID_Pitch.SetMode(AUTOMATIC);
-   PID_Roll.SetMode(AUTOMATIC);
 
    //initializing the SD card
    Serial.print("Initializing SD card...");
@@ -171,16 +108,12 @@ void setup()
       localPort = 8888;
       ipOut = IPAddress(192, 168, 1, 5);
       outPort = 8888;
-      kP_Pitch = 1;
-      kI_Pitch = 1;
-      kD_Pitch = 1;
-      kP_Roll = 1;
-      kI_Roll = 1;
-      kD_Roll = 1;
    }
 
+   DAC_Sim.setChannelLimit(All, 1200);
+
    setupUDP();
-   DAC_Sim.begin();
+   mc.begin();
 }
 
 void loadConfiguration()
@@ -191,12 +124,12 @@ void loadConfiguration()
    config.getPort(localPort);
    config.getOutgoingIPAddress(ipOut);
    config.getOutgoingPort(outPort);
-   config.getKP_Pitch(kP_Pitch);
-   config.getKI_Pitch(kI_Pitch);
-   config.getKD_Pitch(kD_Pitch);
-   config.getKP_Roll(kP_Roll);
-   config.getKI_Roll(kI_Roll);
-   config.getKD_Roll(kD_Roll);
+   config.getKP_Pitch(mc.kP_Pitch);
+   config.getKI_Pitch(mc.kI_Pitch);
+   config.getKD_Pitch(mc.kD_Pitch);
+   config.getKP_Roll(mc.kP_Roll);
+   config.getKI_Roll(mc.kI_Roll);
+   config.getKD_Roll(mc.kD_Roll);
 }
 
 void setupUDP()
@@ -218,64 +151,13 @@ void loop()
 {
    readButtons();
    readUDP();         //where we want to go.
-   readEncoderData(); //where we currently are.
+   mc.update();
 
-   switch (simState)
+   digitalWrite(7, mc.simState != running); // red LED
+   digitalWrite(6, mc.simState == running); // green LED
+
+   if (reportTimer.shouldTrigger())
    {
-   case stopped:
-      PID_P_Output = 0;
-      PID_R_Output = 0;
-      DAC_Sim.clear();
-      break;
-   case starting:
-      // Balance
-      // Raise
-      PID_P_Output = 0;
-      PID_R_Output = 0;
-      DAC_Sim.setChannel(A, 0);
-      DAC_Sim.setChannel(B, 0);
-      if (moveUp())
-      {
-         simState = running;
-      }
-      break;
-   case running:
-      // Two Switches -> Emergency Stop
-      // Panic Button -> End State
-      computePID();
-      DAC_Sim.setChannel(A, (int)PID_P_Output);
-      DAC_Sim.setChannel(B, (int)PID_R_Output);
-      DAC_Sim.setChannel(C, 0);
-      DAC_Sim.setChannel(D, 0);
-      break;
-   case ending:
-      // Go to neutral position
-      // Lower
-      PID_P_Output = 0;
-      PID_R_Output = 0;
-      DAC_Sim.setChannel(A, 0);
-      DAC_Sim.setChannel(B, 0);
-      if (moveDown())
-      {
-         simState = stopped;
-      }
-      break;
-   case emergency_stop:
-      // No power to motors
-      // Ability to exit emergency stop.
-      DAC_Sim.clear();
-      break;
-   case manual:
-      break;
-   }
-
-   digitalWrite(7, simState != running); // red LED
-   digitalWrite(6, simState == running); // green LED
-
-   unsigned long currentMillis = millis();
-   if (currentMillis - previousMillis > REPORT_INTERVAL)
-   {
-      previousMillis = currentMillis;
       report();
    }
 }
@@ -303,39 +185,43 @@ void readUDP()
    case '0':
    {
       //emergency stop
-      emergencyStop();
+      mc.emergencyStop();
       Serial.println("Received Emergency Stop Command");
       break;
    }
    case 'S':
    {
       //start
-      startSimulation();
+      mc.startSimulation();
       Serial.println("Received Start Command");
       break;
    }
    case 'E':
    {
       //stop
-      endSimulation();
+      mc.endSimulation();
       Serial.println("Received End Command");
       break;
    }
    case 'M':
    {
       //update set points
-      if (packetSize != 5)
+      if (packetSize != 24)
       {
          Serial.println("Malformed move command");
          break;
       }
-      if (simState != running)
+      if (mc.simState != running)
       {
          Serial.println("Ignoring move command. Simulator is not running.");
          break;
       }
-      memcpy(&PitchSetpoint, &packetBuffer[1], sizeof(int));
-      memcpy(&RollSetpoint, &packetBuffer[3], sizeof(int));
+      unsigned int ST_PitchSetpoint = 0;
+      unsigned int ST_RollSetpoint = 0;
+      memcpy(&ST_PitchSetpoint, &packetBuffer[1], sizeof(unsigned int));
+      memcpy(&ST_RollSetpoint, &packetBuffer[5], sizeof(unsigned int));
+      mc.PitchSetpoint = mc.constrainedPitchSetpoint(ST_PitchSetpoint);
+      mc.RollSetpoint = mc.constrainedRollSetpoint(ST_PitchSetpoint);
       break;
    }
    case 'm':
@@ -346,37 +232,42 @@ void readUDP()
          {
          case 'P':
          {
-            manualIncreasePitch();
+            mc.manualIncreasePitch(false);
             break;
          }
          case 'p':
          {
-            manualDecreasePitch();
+            mc.manualDecreasePitch(false);
             break;
          }
          case 'R':
          {
-            manualIncreaseRoll();
+            mc.manualIncreaseRoll(false);
             break;
          }
          case 'r':
          {
-            manualDecreaseRoll();
+            mc.manualDecreaseRoll(false);
             break;
          }
          case 'L':
          {
-            manualIncreaseLift();
+            mc.manualIncreaseLift(false);
             break;
          }
          case 'l':
          {
-            manualDecreaseLift();
+            mc.manualDecreaseLift(false);
             break;
          }
          case 's':
          {
-            DAC_Sim.clear();
+            mc.manualIncreasePitch(true);
+            mc.manualDecreasePitch(true);
+            mc.manualIncreaseRoll(true);
+            mc.manualDecreaseRoll(true);
+            mc.manualIncreaseLift(true);
+            mc.manualDecreaseLift(true);
             break;
          }
          }
@@ -391,9 +282,9 @@ void readUDP()
          Serial.println("Malformed update pitch PID command");
          break;
       }
-      memcpy(&kP_Pitch, &packetBuffer[1], sizeof(double));
-      memcpy(&kI_Pitch, &packetBuffer[9], sizeof(double));
-      memcpy(&kD_Pitch, &packetBuffer[17], sizeof(double));
+      memcpy(&mc.kP_Pitch, &packetBuffer[1], sizeof(double));
+      memcpy(&mc.kI_Pitch, &packetBuffer[9], sizeof(double));
+      memcpy(&mc.kD_Pitch, &packetBuffer[17], sizeof(double));
       break;
    }
    case '2':
@@ -404,9 +295,9 @@ void readUDP()
          Serial.println("Malformed update roll PID command");
          break;
       }
-      memcpy(&kP_Roll, &packetBuffer[1], sizeof(double));
-      memcpy(&kI_Roll, &packetBuffer[9], sizeof(double));
-      memcpy(&kD_Roll, &packetBuffer[17], sizeof(double));
+      memcpy(&mc.kP_Roll, &packetBuffer[1], sizeof(double));
+      memcpy(&mc.kI_Roll, &packetBuffer[9], sizeof(double));
+      memcpy(&mc.kD_Roll, &packetBuffer[17], sizeof(double));
       break;
    }
    case 'G':
@@ -454,27 +345,8 @@ void readUDP()
    }
 }
 
-/**
- * @brief Retrieves data from encoder
- * 
- * Updates the PitchValue and RollValue with data from the encoders.
- */
-void readEncoderData()
-{
-   PitchValue = EncoderPitch.read();
-   if (PitchValue < 0)
-      PitchValue += PITCH_ENCODER_MAX;
-   PitchValue %= PITCH_ENCODER_MAX;
-
-   RollValue = EncoderRoll.read();
-   if (RollValue < 0)
-      RollValue += ROLL_ENCODER_MAX;
-   RollValue %= ROLL_ENCODER_MAX;
-}
-
 void readButtons()
 {
-
    buttonEmergencyStop.read();
 
    buttonLiftIncrease.read();
@@ -489,51 +361,6 @@ void readButtons()
    buttonPitchDecrease.read();
    buttonRollIncrease.read();
    buttonRollDecrease.read();
-}
-
-/**
- * @brief Computes PID outputs for pitch and roll.
- * 
- * Adjust setpoints for 360 rotation and calls Compute() on PID objects.
- */
-void computePID()
-{
-   //Update PID Setpoints
-   // Normalize the heading to be within 180° of Setpoint (desired heading: 0-359°)
-   // Found here: https://forum.arduino.cc/index.php?topic=272298.0
-
-   if (PitchValue - PitchSetpoint < -PITCH_ENCODER_180_DEG)
-   {
-      PID_P_Setpoint = PitchSetpoint - PITCH_ENCODER_MAX;
-   }
-   else if (PitchValue - PitchSetpoint > PITCH_ENCODER_180_DEG)
-   {
-      PID_P_Setpoint = PitchSetpoint + PITCH_ENCODER_MAX;
-   }
-   else
-   {
-      PID_P_Setpoint = PitchSetpoint;
-   }
-
-   if (RollValue - RollSetpoint < -ROLL_ENCODER_180_DEG)
-   {
-      PID_R_Setpoint = RollSetpoint - ROLL_ENCODER_MAX;
-   }
-   else if (RollValue - RollSetpoint > ROLL_ENCODER_180_DEG)
-   {
-      PID_R_Setpoint = RollSetpoint + ROLL_ENCODER_MAX;
-   }
-   else
-   {
-      PID_R_Setpoint = RollSetpoint;
-   }
-
-   //Update PID Inputs
-   PID_P_Input = PitchValue;
-   PID_R_Input = RollValue;
-
-   PID_Pitch.Compute();
-   PID_Roll.Compute();
 }
 
 //byte legend
@@ -553,24 +380,24 @@ void computePID()
 void report()
 {
 
-   int pitchPWM = (int)PID_P_Output;
-   int rollPWM = (int)PID_R_Output;
+   int pitchPWM = (int)mc.PID_P_Output;
+   int rollPWM = (int)mc.PID_R_Output;
    byte bufferSize = 62;
    char *ReplyBuffer = new char[bufferSize];
 
-   memcpy(&ReplyBuffer[0], &PitchSetpoint, sizeof(int));
-   memcpy(&ReplyBuffer[2], &PitchValue, sizeof(int));
-   memcpy(&ReplyBuffer[4], &RollSetpoint, sizeof(int));
-   memcpy(&ReplyBuffer[6], &RollValue, sizeof(int));
+   memcpy(&ReplyBuffer[0], &mc.PitchSetpoint, sizeof(int));
+   memcpy(&ReplyBuffer[2], &mc.PitchValue, sizeof(int));
+   memcpy(&ReplyBuffer[4], &mc.RollSetpoint, sizeof(int));
+   memcpy(&ReplyBuffer[6], &mc.RollValue, sizeof(int));
    memcpy(&ReplyBuffer[8], &pitchPWM, sizeof(int));
    memcpy(&ReplyBuffer[10], &rollPWM, sizeof(int));
-   memcpy(&ReplyBuffer[12], &simState, sizeof(byte));
-   memcpy(&ReplyBuffer[13], &kP_Pitch, sizeof(double));
-   memcpy(&ReplyBuffer[21], &kI_Pitch, sizeof(double));
-   memcpy(&ReplyBuffer[29], &kD_Pitch, sizeof(double));
-   memcpy(&ReplyBuffer[37], &kP_Roll, sizeof(double));
-   memcpy(&ReplyBuffer[45], &kI_Roll, sizeof(double));
-   memcpy(&ReplyBuffer[53], &kD_Roll, sizeof(double));
+   memcpy(&ReplyBuffer[12], &mc.simState, sizeof(byte));
+   memcpy(&ReplyBuffer[13], &mc.kP_Pitch, sizeof(double));
+   memcpy(&ReplyBuffer[21], &mc.kI_Pitch, sizeof(double));
+   memcpy(&ReplyBuffer[29], &mc.kD_Pitch, sizeof(double));
+   memcpy(&ReplyBuffer[37], &mc.kP_Roll, sizeof(double));
+   memcpy(&ReplyBuffer[45], &mc.kI_Roll, sizeof(double));
+   memcpy(&ReplyBuffer[53], &mc.kD_Roll, sizeof(double));
 
    Udp.beginPacket(ipOut, outPort);
    Udp.write(ReplyBuffer, bufferSize);
@@ -579,216 +406,41 @@ void report()
    delete ReplyBuffer;
 }
 
-void startSimulation()
-{
-   if (simState == emergency_stop)
-   {
-      Serial.println("Cannot start simulation due to emergency stop.");
-      return;
-   }
-   if (simState != stopped)
-   {
-      Serial.println("Cannot start simulation as the simulator is not stopped.");
-      return;
-   }
-   simState = starting;
-}
-
-void endSimulation()
-{
-   if (simState == emergency_stop)
-   {
-      Serial.println("Cannot start simulation due to emergency stop.");
-      return;
-   }
-   if (simState != running)
-   {
-      Serial.println("Cannot start simulation as the simulator is not running.");
-      return;
-   }
-   simState = ending;
-}
-
-void emergencyStop()
-{
-   DAC_Sim.clear();
-   simState = emergency_stop;
-}
-
-int upTemp = 0;
-bool moveUp()
-{
-   // int a = digitalRead(STOP_SWITCH_TOP_A_PIN);
-   // int b = digitalRead(STOP_SWITCH_TOP_B_PIN);
-   // if (a == HIGH || b == HIGH)
-   // {
-   //    //move up
-   // } else {
-   //    return true;
-   // }
-   // return false;
-   //This function is incomplete.
-   //just some code to simulate moving up.
-   if (upTemp < 5000)
-   {
-      upTemp++;
-      return false;
-   }
-   upTemp = 0;
-   return true;
-}
-
-int downTemp = 0;
-bool moveDown()
-{
-   // PitchSetpoint = 0;
-   // PitchSetpoint = 0;
-   // if (PitchValue != PitchSetpoint)
-   // {
-   //    //rotate to start position
-   //    computePID();
-   //    //PID_X_Output could be constrained so that it doesn't move too fast.
-   //    DAC_Sim.setValues((int)PID_P_Output, (int)PID_R_Output, 0, 0);
-   //    return false;
-   // }
-
-   // if (digitalRead(STOP_SWITCH_BOTTOM_PIN) == HIGH)
-   // {
-   //    // move down
-   // }
-   // return true;
-
-   //This function is incomplete.
-   //just some code to simulate moving down.
-   if (downTemp < 5000)
-   {
-      downTemp++;
-      return false;
-   }
-   downTemp = 0;
-   return true;
-}
-
 void emergencyStopCallback(Button *button)
 {
    if (button->pressed)
    {
-      emergencyStop();
+      mc.emergencyStop();
    }
 }
 
 void increasePitchCallback(Button *button)
 {
-   if (button->pressed)
-   {
-      manualIncreasePitch();
-   }
-   else
-   {
-      PID_P_Output = 0;
-      DAC_Sim.setChannel(A, PID_P_Output);
-   }
+   mc.manualIncreasePitch(!button->pressed);
 }
 
 void decreasePitchCallback(Button *button)
 {
-   if (button->pressed)
-   {
-      manualDecreasePitch();
-   }
-   else
-   {
-      PID_P_Output = 0;
-      DAC_Sim.setChannel(A, PID_P_Output);
-   }
+   mc.manualDecreasePitch(!button->pressed);
 }
 
 void increaseRollCallback(Button *button)
 {
-   if (button->pressed)
-   {
-      manualIncreaseRoll();
-   }
-   else
-   {
-      PID_R_Output = 0;
-      DAC_Sim.setChannel(B, PID_R_Output);
-   }
+   mc.manualIncreaseRoll(!button->pressed);
 }
 
 void decreaseRollCallback(Button *button)
 {
-   if (button->pressed)
-   {
-      manualDecreaseRoll();
-   }
-   else
-   {
-      PID_R_Output = 0;
-      DAC_Sim.setChannel(B, PID_R_Output);
-   }
+   mc.manualDecreaseRoll(!button->pressed);
 }
 
 void increaseLiftCallback(Button *button)
 {
-   if (button->pressed)
-   {
-      manualIncreaseLift();
-   }
-   else
-   {
-      DAC_Sim.setChannel(C, 0);
-   }
+   mc.manualIncreaseLift(!button->pressed);
 }
 
 void decreaseLiftCallback(Button *button)
 {
-   if (button->pressed)
-   {
-      manualDecreaseLift();
-   }
-   else
-   {
-      DAC_Sim.setChannel(C, 0);
-   }
+   mc.manualDecreaseLift(!button->pressed);
 }
 
-void manualIncreasePitch()
-{
-   simState = manual;
-   PID_P_Output = MAX_MANUAL_SPEED; //update for reporting.
-   DAC_Sim.setChannel(A, PID_P_Output);
-}
-
-void manualDecreasePitch()
-{
-   simState = manual;
-   PID_P_Output = -MAX_MANUAL_SPEED; //update for reporting.
-   DAC_Sim.setChannel(A, PID_P_Output);
-}
-
-void manualIncreaseRoll()
-{
-   simState = manual;
-   PID_R_Output = MAX_MANUAL_SPEED; //update for reporting.
-   DAC_Sim.setChannel(B, PID_R_Output);
-}
-
-void manualDecreaseRoll()
-{
-   simState = manual;
-   PID_R_Output = -MAX_MANUAL_SPEED; //update for reporting.
-   DAC_Sim.setChannel(B, PID_R_Output);
-}
-
-void manualIncreaseLift()
-{
-   simState = manual;
-   DAC_Sim.setChannel(C, MAX_MANUAL_SPEED);
-}
-
-void manualDecreaseLift()
-{
-   simState = manual;
-   DAC_Sim.setChannel(C, -MAX_MANUAL_SPEED);
-}

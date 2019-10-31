@@ -51,6 +51,7 @@ public:
    DAC(int csPin);
    
    void begin();
+   void setChannelLimit(channelOption channel, int value);
    void setChannel(channelOption channel, int value);
    void setCoarseGain(channelOption channel, coarseGainOption option);
 
@@ -66,7 +67,13 @@ public:
    void load();
 
 private:
+   int maxChannelALimit = INT16_MAX;
+   int maxChannelBLimit = INT16_MAX;
+   int maxChannelCLimit = INT16_MAX;
+   int maxChannelDLimit = INT16_MAX;
+
    void cmdToByteArray(int x, byte out[3]);
+   int getChannelLimit(channelOption channel);
    void transferCmd(uint32_t cmd);
 };
 
