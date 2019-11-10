@@ -52,8 +52,9 @@ uint16_t localPort; // port to listen
 IPAddress ipOut;  // address to broadcast
 uint16_t outPort; // port to send
 
+#define UDP_MAX_PACKET_SIZE 25
 // buffers for receiving and sending data
-char packetBuffer[UDP_TX_PACKET_MAX_SIZE]; // buffer to hold incoming packet
+char packetBuffer[UDP_MAX_PACKET_SIZE]; // buffer to hold incoming packet
 
 // An EthernetUDP instance to let us send and receive packets over UDP
 EthernetUDP Udp;
@@ -94,7 +95,6 @@ void setup()
 
    //initializing the SD card
    Serial.print("Initializing SD card...");
-   
    if (SD.begin(SPI_SD_PIN))
    {
       Serial.println("card initialized.");
@@ -178,7 +178,7 @@ void readUDP()
       return;
 
    // read the packet into packetBufffer
-   Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
+   Udp.read(packetBuffer, UDP_MAX_PACKET_SIZE);
 
    switch (packetBuffer[0])
    {
@@ -205,8 +205,8 @@ void readUDP()
    }
    case 'M':
    {
-      //update set points
-      if (packetSize != 24)
+      // update set points
+      if (packetSize < 9)
       {
          Serial.println("Malformed move command");
          break;
@@ -221,7 +221,7 @@ void readUDP()
       memcpy(&ST_PitchSetpoint, &packetBuffer[1], sizeof(unsigned int));
       memcpy(&ST_RollSetpoint, &packetBuffer[5], sizeof(unsigned int));
       mc.PitchSetpoint = mc.constrainedPitchSetpoint(ST_PitchSetpoint);
-      mc.RollSetpoint = mc.constrainedRollSetpoint(ST_PitchSetpoint);
+      mc.RollSetpoint = mc.constrainedRollSetpoint(ST_RollSetpoint);
       break;
    }
    case 'm':
@@ -277,7 +277,7 @@ void readUDP()
    case '1':
    {
       // update pitch pid values
-      if (packetSize != 24)
+      if (packetSize != 25)
       {
          Serial.println("Malformed update pitch PID command");
          break;
@@ -290,7 +290,7 @@ void readUDP()
    case '2':
    {
       //update roll pid values
-      if (packetSize != 24)
+      if (packetSize != 25)
       {
          Serial.println("Malformed update roll PID command");
          break;
