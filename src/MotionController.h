@@ -5,6 +5,7 @@
 #include <PID_v1.h>
 
 #include "Dac.h"
+#include "Button.h"
 
 using namespace std;
 
@@ -47,7 +48,14 @@ public:
    double kD_Roll = 1;
    double PID_R_Setpoint, PID_R_Input, PID_R_Output;
 
-   MotionController(DAC *dac, Encoder *pitchEncoder, Encoder *rollEncoder);
+   MotionController(
+      DAC *dac, 
+      Encoder *pitchEncoder, 
+      Encoder *rollEncoder,
+      Button *topSWA,
+      Button *topSWB,
+      Button *bottomSW,
+      Button *stopButton);
 
    void begin();
 
@@ -68,12 +76,21 @@ public:
    void emergencyStop();
 
 private:
+
    DAC *m_dac;
+
    Encoder *m_encoderPitch;
    Encoder *m_encoderRoll;
+
+   Button *m_topSWA;
+   Button *m_topSWB;
+   Button *m_bottomSW;
+   Button *m_stopButton;
+
    PID PID_Pitch;
    PID PID_Roll;
 
+   void checkSetSwitches();
    void computePID();
    void readEncoderData();
    bool moveUp();

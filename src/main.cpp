@@ -22,17 +22,21 @@ using namespace std;
 #define encoderRollAPin 24
 #define encoderRollBPin 25
 
-#define STOP_SWITCH_TOP_A_PIN 26
-#define STOP_SWITCH_TOP_B_PIN 27
-#define STOP_SWITCH_BOTTOM_PIN 28
+#define STOP_SWITCH_TOP_A_PIN 38
+#define STOP_SWITCH_TOP_B_PIN 39
+#define STOP_SWITCH_BOTTOM_PIN 40
+#define PITCH_HOME_PIN 41
 
-#define BTN_P_INCREASE_PIN 30
-#define BTN_P_DECREASE_PIN 31
-#define BTN_R_INCREASE_PIN 32
-#define BTN_R_DECREASE_PIN 33
-#define BTN_L_INCREASE_PIN 34
-#define BTN_L_DECREASE_PIN 35
-#define BTN_ESTOP_PIN 36
+#define BTN_P_INCREASE_PIN 42
+#define BTN_P_DECREASE_PIN 43
+#define BTN_R_INCREASE_PIN 44
+#define BTN_R_DECREASE_PIN 45
+#define BTN_L_INCREASE_PIN 46
+#define BTN_L_DECREASE_PIN 47
+#define BTN_ESTOP_PIN 48
+
+#define BTN_STOP 49
+#define BTN_CANOPY 50
 
 //A timer to report stats ever 100 miliseconds.
 LoopTimer reportTimer(100);
@@ -42,7 +46,19 @@ Encoder EncoderRoll(encoderRollAPin, encoderRollBPin);
 
 DAC DAC_Sim(SPI_DAC_PIN);
 
-MotionController mc(&DAC_Sim, &EncoderPitch, &EncoderRoll);
+Button topSetSwitchA   = Button(STOP_SWITCH_TOP_A_PIN, NULL);
+Button topSetSwitchB   = Button(STOP_SWITCH_TOP_A_PIN, NULL);
+Button bottomSetSwitch = Button(STOP_SWITCH_TOP_A_PIN, NULL);
+Button stopButton      = Button(BTN_STOP, NULL);
+
+MotionController mc(
+    &DAC_Sim,
+    &EncoderPitch,
+    &EncoderRoll,
+    &topSetSwitchA,
+    &topSetSwitchB,
+    &bottomSetSwitch,
+    &stopButton);
 
 byte mac[6] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED}; // device mac address
 
@@ -150,7 +166,7 @@ void setupUDP()
 void loop()
 {
    readButtons();
-   readUDP();         //where we want to go.
+   readUDP(); //where we want to go.
    mc.update();
 
    digitalWrite(7, mc.simState != running); // red LED
@@ -348,7 +364,7 @@ void readUDP()
 void readButtons()
 {
    buttonEmergencyStop.read();
-
+   
    buttonLiftIncrease.read();
    buttonLiftDecrease.read();
 
@@ -444,3 +460,15 @@ void decreaseLiftCallback(Button *button)
    mc.manualDecreaseLift(!button->pressed);
 }
 
+void topSetSwitchACallback(Button *button)
+{
+
+}
+void topSetSwitchBCallback(Button *button)
+{
+
+}
+void bottomSetSwitchCallback(Button *button)
+{
+
+}

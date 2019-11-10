@@ -1,14 +1,26 @@
 #include "MotionController.h"
+#include "Button.h"
 
 using namespace std;
 
-MotionController::MotionController(DAC *dac, Encoder *pitchEncoder, Encoder *rollEncoder)
+MotionController::MotionController(
+    DAC *dac,
+    Encoder *pitchEncoder,
+    Encoder *rollEncoder,
+    Button *topSWA,
+    Button *topSWB,
+    Button *bottomSW,
+    Button *stopButton)
     : PID_Pitch(PID(&PID_P_Input, &PID_P_Output, &PID_P_Setpoint, kP_Pitch, kI_Pitch, kD_Pitch, REVERSE)),
       PID_Roll(PID(&PID_R_Input, &PID_R_Output, &PID_R_Setpoint, kP_Roll, kI_Roll, kD_Roll, REVERSE))
 {
    m_dac = dac;
    m_encoderPitch = pitchEncoder;
    m_encoderRoll = rollEncoder;
+   m_topSWA = topSWA;
+   m_topSWB = topSWB;
+   m_bottomSW = bottomSW;
+   m_stopButton = stopButton;
    // Use negative min to allow PID calcuation to reverse motor.
    // But keep range of 0-255
    PID_Pitch.SetOutputLimits(INT16_MIN, INT16_MAX);
@@ -33,6 +45,8 @@ void MotionController::begin()
 
 void MotionController::update()
 {
+   checkSetSwitches();
+   m_stopButton->read();
    readEncoderData();
    switch (simState)
    {
@@ -40,9 +54,16 @@ void MotionController::update()
       PID_P_Output = 0;
       PID_R_Output = 0;
       m_dac->clear();
+      //TODO: Disable down pin
+      //TODO: Disable up pin
       break;
    case starting:
-      //Check that bottom switch is pressed. Otherwise go to stop.
+      if (m_stopButton->pressed)
+      {
+         // occupant pressed stop button or seatbelt came undone.
+         simState = ending;
+         break;
+      }
       // Lift for 1 second.
       // Disconnect pitch motor allowing to move.
       // Balance
@@ -57,8 +78,17 @@ void MotionController::update()
       }
       break;
    case running:
-      // Two Switches -> Emergency Stop
-      // Panic Button -> End State
+      if (!m_topSWA->pressed || !m_topSWB->pressed)
+      {
+         emergencyStop();
+         break;
+      }
+      if (m_stopButton->pressed)
+      {
+         // Panic Button -> End State
+         simState = ending;
+         break;
+      }
       computePID();
       m_dac->setChannel(A, (int)PID_P_Output);
       m_dac->setChannel(B, (int)PID_R_Output);
@@ -85,6 +115,13 @@ void MotionController::update()
    case manual:
       break;
    }
+}
+
+void MotionController::checkSetSwitches()
+{
+   m_topSWA->read();
+   m_topSWB->read();
+   m_bottomSW->read();
 }
 
 /**
@@ -267,27 +304,34 @@ void MotionController::manualDecreaseRoll(bool end)
 
 void MotionController::manualIncreaseLift(bool end)
 {
+   if (m_topSWA->pressed && m_topSWB->pressed)
+   {
+      //TODO: turn off up pin
+      return;
+   }
    if (end)
    {
-      m_dac->setChannel(C, 0);
+      //TODO: turn off up pin.
    }
    else
    {
-      simState = manual;
-      m_dac->setChannel(C, MAX_MANUAL_SPEED);
+      //TODO: turn on up pin
    }
 }
 
 void MotionController::manualDecreaseLift(bool end)
 {
+   if (m_bottomSW->pressed)
+   {
+      //TODO: turn off down pin
+   }
    if (end)
    {
-      m_dac->setChannel(C, 0);
+      //TODO: turn off down pin
    }
    else
    {
-      simState = manual;
-      m_dac->setChannel(C, -MAX_MANUAL_SPEED);
+      //TODO: turn on down pin
    }
 }
 
@@ -323,6 +367,7 @@ void MotionController::endSimulation()
 
 void MotionController::emergencyStop()
 {
+   //TODO: turn off up an down pins
    m_dac->clear();
    simState = emergency_stop;
 }
