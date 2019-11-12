@@ -10,6 +10,7 @@
 #include "Button.h"
 #include "MotionController.h"
 #include "LoopTimer.h"
+#include "IO_Pins.h"
 
 using namespace std;
 
@@ -22,21 +23,13 @@ using namespace std;
 #define encoderRollAPin 24
 #define encoderRollBPin 25
 
-#define STOP_SWITCH_TOP_A_PIN 38
-#define STOP_SWITCH_TOP_B_PIN 39
-#define STOP_SWITCH_BOTTOM_PIN 40
-#define PITCH_HOME_PIN 41
-
-#define BTN_P_INCREASE_PIN 42
-#define BTN_P_DECREASE_PIN 43
-#define BTN_R_INCREASE_PIN 44
-#define BTN_R_DECREASE_PIN 45
-#define BTN_L_INCREASE_PIN 46
-#define BTN_L_DECREASE_PIN 47
-#define BTN_ESTOP_PIN 48
-
-#define BTN_STOP 49
-#define BTN_CANOPY 50
+#define BTN_ESTOP_PIN 12
+#define BTN_P_INCREASE_PIN 11
+#define BTN_P_DECREASE_PIN 9
+#define BTN_R_INCREASE_PIN 8
+#define BTN_R_DECREASE_PIN 7
+#define BTN_L_INCREASE_PIN 6
+#define BTN_L_DECREASE_PIN 5
 
 //A timer to report stats ever 100 miliseconds.
 LoopTimer reportTimer(100);
@@ -46,10 +39,12 @@ Encoder EncoderRoll(encoderRollAPin, encoderRollBPin);
 
 DAC DAC_Sim(SPI_DAC_PIN);
 
-Button topSetSwitchA   = Button(STOP_SWITCH_TOP_A_PIN, NULL);
-Button topSetSwitchB   = Button(STOP_SWITCH_TOP_A_PIN, NULL);
-Button bottomSetSwitch = Button(STOP_SWITCH_TOP_A_PIN, NULL);
-Button stopButton      = Button(BTN_STOP, NULL);
+Button topSetSwitchA = Button(DI_TOP_A, NULL);
+Button topSetSwitchB = Button(DI_TOP_B, NULL);
+Button bottomSetSwitch = Button(DI_BOTTOM, NULL);
+Button stopButton = Button(DI_STOP, NULL, INPUT);
+Button homeButton = Button(DI_HOME, NULL);
+Button canopyButton = Button(DI_CANOPY, NULL);
 
 MotionController mc(
     &DAC_Sim,
@@ -99,13 +94,19 @@ Button buttonEmergencyStop = Button(BTN_ESTOP_PIN, &emergencyStopCallback);
 
 void setup()
 {
-   //test LEDS
-   pinMode(7, OUTPUT);
-   pinMode(6, OUTPUT);
+   pinMode(DO_INC_CW, OUTPUT);
+   pinMode(DO_DEC_CW, OUTPUT);
+   pinMode(DO_UP_CO, OUTPUT);
+   pinMode(DO_P_DIS, OUTPUT);
+   pinMode(DO_PRESSURE, OUTPUT);
+   pinMode(DO_DOWN_CO, OUTPUT);
 
-   // pinMode(STOP_SWITCH_TOP_A_PIN, INPUT);
-   // pinMode(STOP_SWITCH_TOP_B_PIN, INPUT);
-   // pinMode(STOP_SWITCH_BOTTOM_PIN, INPUT);
+   digitalWrite(DO_INC_CW, LOW);
+   digitalWrite(DO_DEC_CW, LOW);
+   digitalWrite(DO_UP_CO, LOW);
+   digitalWrite(DO_P_DIS, LOW);
+   digitalWrite(DO_PRESSURE, LOW);
+   digitalWrite(DO_DOWN_CO, LOW);
 
    Serial.begin(115200);
 
@@ -168,9 +169,6 @@ void loop()
    readButtons();
    readUDP(); //where we want to go.
    mc.update();
-
-   digitalWrite(7, mc.simState != running); // red LED
-   digitalWrite(6, mc.simState == running); // green LED
 
    if (reportTimer.shouldTrigger())
    {
@@ -364,7 +362,7 @@ void readUDP()
 void readButtons()
 {
    buttonEmergencyStop.read();
-   
+
    buttonLiftIncrease.read();
    buttonLiftDecrease.read();
 
@@ -458,17 +456,4 @@ void increaseLiftCallback(Button *button)
 void decreaseLiftCallback(Button *button)
 {
    mc.manualDecreaseLift(!button->pressed);
-}
-
-void topSetSwitchACallback(Button *button)
-{
-
-}
-void topSetSwitchBCallback(Button *button)
-{
-
-}
-void bottomSetSwitchCallback(Button *button)
-{
-
 }

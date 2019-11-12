@@ -3,11 +3,11 @@
 
 using namespace std;
 
-Button::Button(int PIN, void (*pCallbackFunction)(Button*))
+Button::Button(int PIN, void (*pCallbackFunction)(Button *), uint32_t ulMode)
 {
   pin = PIN;
   pCallback = pCallbackFunction;
-  pinMode(pin, INPUT_PULLUP);
+  pinMode(pin, ulMode);
   state = digitalRead(pin);
   pressed = state == LOW;
   lastValue = state;
@@ -17,13 +17,16 @@ Button::Button(int PIN, void (*pCallbackFunction)(Button*))
 void Button::read()
 {
   int value = digitalRead(pin);
-  if (value != lastValue){
+  if (value != lastValue)
+  {
     lastDebounceTime = millis();
   }
-  if ((millis() - lastDebounceTime) > 10){
-    if (value != state){
+  if ((millis() - lastDebounceTime) > 10)
+  {
+    if (value != state)
+    {
       state = value;
-	  pressed = state == LOW;
+      pressed = state == LOW;
       pCallback(this);
     }
   }

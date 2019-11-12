@@ -1,5 +1,6 @@
 #include "MotionController.h"
 #include "Button.h"
+#include "IO_Pins.h"
 
 using namespace std;
 
@@ -54,8 +55,10 @@ void MotionController::update()
       PID_P_Output = 0;
       PID_R_Output = 0;
       m_dac->clear();
-      //TODO: Disable down pin
-      //TODO: Disable up pin
+      //Disable down pin
+      digitalWrite(DO_DOWN_CO, LOW);
+      //Disable up pin
+      digitalWrite(DO_UP_CO, LOW);
       break;
    case starting:
       if (m_stopButton->pressed)
@@ -86,6 +89,7 @@ void MotionController::update()
       if (m_stopButton->pressed)
       {
          // Panic Button -> End State
+         // Just home it don't lower
          simState = ending;
          break;
       }

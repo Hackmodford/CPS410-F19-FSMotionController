@@ -19,7 +19,7 @@ public:
   int state;
   bool pressed;
   void read();
-  Button(int PIN, void (*pCallbackFunction)(Button *));
+  Button(int PIN, void (*pCallbackFunction)(Button *), uint32_t ulMode = INPUT_PULLUP);
 };
 
 #endif //FSMOTIONCONTROLLER_BUTTON_H
