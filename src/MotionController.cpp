@@ -378,10 +378,16 @@ void MotionController::emergencyStop()
 
 int MotionController::constrainedPitchSetpoint(unsigned int value)
 {
-   return map(value, 0, UINT32_MAX, PITCH_ENCODER_MIN, PITCH_ENCODER_MAX);
+   unsigned int x = uMap(value, 0, UINT32_MAX, PITCH_ENCODER_MIN, PITCH_ENCODER_MAX);
+   return x;
 }
 
 int MotionController::constrainedRollSetpoint(unsigned int value)
 {
-   return map(value, 0, UINT32_MAX, ROLL_ENCODER_MIN, ROLL_ENCODER_MAX);
+   return uMap(value, 0, UINT32_MAX, ROLL_ENCODER_MIN, ROLL_ENCODER_MAX);
+}
+
+unsigned long long MotionController::uMap(unsigned long long x, unsigned long long in_min, unsigned long long in_max, unsigned long long out_min, unsigned long long out_max) {
+
+     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }

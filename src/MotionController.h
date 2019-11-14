@@ -95,6 +95,7 @@ private:
    void readEncoderData();
    bool moveUp();
    bool moveDown();
+   unsigned long long uMap(unsigned long long x, unsigned long long in_min, unsigned long long in_max, unsigned long long out_min, unsigned long long out_max);
 };
 
 #endif
