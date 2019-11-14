@@ -92,6 +92,8 @@ Button buttonLiftIncrease = Button(BTN_L_INCREASE_PIN, &increaseLiftCallback);
 Button buttonLiftDecrease = Button(BTN_L_DECREASE_PIN, &decreaseLiftCallback);
 Button buttonEmergencyStop = Button(BTN_ESTOP_PIN, &emergencyStopCallback);
 
+void reverseBytes(void *start, int size);
+
 void setup()
 {
    pinMode(DO_INC_CW, OUTPUT);
@@ -225,15 +227,25 @@ void readUDP()
          Serial.println("Malformed move command");
          break;
       }
-      if (mc.simState != running)
-      {
-         Serial.println("Ignoring move command. Simulator is not running.");
-         break;
-      }
+      // if (mc.simState != running)
+      // {
+      //    Serial.println("Ignoring move command. Simulator is not running.");
+      //    break;
+      // }
+
+      //convert big endian message to little endian
+      char pitchBuffer[sizeof(unsigned int)] = "";
+      char rollBuffer[sizeof(unsigned int)] = "";
+      memcpy(&pitchBuffer, &packetBuffer[1], sizeof(unsigned int));
+      memcpy(&rollBuffer, &packetBuffer[5], sizeof(unsigned int));
+      reverseBytes(pitchBuffer, sizeof(unsigned int));
+      reverseBytes(rollBuffer, sizeof(unsigned int));
+
       unsigned int ST_PitchSetpoint = 0;
       unsigned int ST_RollSetpoint = 0;
-      memcpy(&ST_PitchSetpoint, &packetBuffer[1], sizeof(unsigned int));
-      memcpy(&ST_RollSetpoint, &packetBuffer[5], sizeof(unsigned int));
+      memcpy(&ST_PitchSetpoint, pitchBuffer, sizeof(unsigned int));
+      memcpy(&ST_RollSetpoint, rollBuffer, sizeof(unsigned int));
+
       mc.PitchSetpoint = mc.constrainedPitchSetpoint(ST_PitchSetpoint);
       mc.RollSetpoint = mc.constrainedRollSetpoint(ST_RollSetpoint);
       break;
@@ -456,4 +468,15 @@ void increaseLiftCallback(Button *button)
 void decreaseLiftCallback(Button *button)
 {
    mc.manualDecreaseLift(!button->pressed);
+}
+
+void reverseBytes(void *start, int size) {
+    byte *lo = (byte *)start;
+    byte *hi = (byte *)start + size - 1;
+    byte swap;
+    while (lo < hi) {
+        swap = *lo;
+        *lo++ = *hi;
+        *hi-- = swap;
+    }
 }
