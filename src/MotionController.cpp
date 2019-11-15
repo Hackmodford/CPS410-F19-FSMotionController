@@ -55,16 +55,16 @@ void MotionController::update()
       PID_P_Output = 0;
       PID_R_Output = 0;
       m_dac->clear();
-      //Disable down pin
       digitalWrite(DO_DOWN_CO, LOW);
-      //Disable up pin
       digitalWrite(DO_UP_CO, LOW);
       break;
    case starting:
       if (m_stopButton->pressed)
       {
          // occupant pressed stop button or seatbelt came undone.
-         simState = ending;
+         //simState = ending;
+         Serial.println("Stopped in starting state");
+         emergencyStop();
          break;
       }
       // Lift for 1 second.
@@ -83,6 +83,7 @@ void MotionController::update()
    case running:
       if (!m_topSWA->pressed || !m_topSWB->pressed)
       {
+         Serial.println("Top Switches not pressed. Ending running state.");
          emergencyStop();
          break;
       }
@@ -90,7 +91,9 @@ void MotionController::update()
       {
          // Panic Button -> End State
          // Just home it don't lower
-         simState = ending;
+         //simState = ending;
+         Serial.println("Pressed Stop button in running state.");
+         emergencyStop();
          break;
       }
       computePID();
@@ -192,58 +195,32 @@ void MotionController::computePID()
    PID_Roll.Compute();
 }
 
-int upTemp = 0;
 bool MotionController::moveUp()
 {
-   // int a = digitalRead(STOP_SWITCH_TOP_A_PIN);
-   // int b = digitalRead(STOP_SWITCH_TOP_B_PIN);
-   // if (a == HIGH || b == HIGH)
-   // {
-   //    //move up
-   // } else {
-   //    return true;
-   // }
-   // return false;
-   //This function is incomplete.
-   //just some code to simulate moving up.
-   if (upTemp < 5000)
+   if (m_topSWB->pressed)
+      Serial.println("B is pressed");
+   if (m_topSWA->pressed)
+      Serial.println("A is pressed");
+   if (m_topSWA->pressed && m_topSWB->pressed)
    {
-      upTemp++;
-      return false;
+      digitalWrite(DO_UP_CO, LOW);
+      return true;
    }
-   upTemp = 0;
-   return true;
+   digitalWrite(DO_UP_CO, HIGH);
+   return false;
 }
 
-int downTemp = 0;
 bool MotionController::moveDown()
 {
-   // PitchSetpoint = 0;
-   // PitchSetpoint = 0;
-   // if (PitchValue != PitchSetpoint)
-   // {
-   //    //rotate to start position
-   //    computePID();
-   //    //PID_X_Output could be constrained so that it doesn't move too fast.
-   //    m_dac->setValues((int)PID_P_Output, (int)PID_R_Output, 0, 0);
-   //    return false;
-   // }
-
-   // if (digitalRead(STOP_SWITCH_BOTTOM_PIN) == HIGH)
-   // {
-   //    // move down
-   // }
-   // return true;
-
-   //This function is incomplete.
-   //just some code to simulate moving down.
-   if (downTemp < 5000)
+   if (m_bottomSW->pressed)
+      Serial.println("Bottom switch is pressed");
+   if (m_bottomSW->pressed)
    {
-      downTemp++;
-      return false;
+      digitalWrite(DO_DOWN_CO, LOW);
+      return true;
    }
-   downTemp = 0;
-   return true;
+   digitalWrite(DO_DOWN_CO, HIGH);
+   return false;
 }
 
 void MotionController::manualIncreasePitch(bool end)
@@ -373,6 +350,14 @@ void MotionController::emergencyStop()
 {
    //TODO: turn off up an down pins
    m_dac->clear();
+
+   digitalWrite(DO_INC_CW, LOW);
+   digitalWrite(DO_DEC_CW, LOW);
+   digitalWrite(DO_UP_CO, LOW);
+   digitalWrite(DO_P_DIS, LOW);
+   digitalWrite(DO_PRESSURE, LOW);
+   digitalWrite(DO_DOWN_CO, LOW);
+
    simState = emergency_stop;
 }
 
@@ -387,7 +372,8 @@ int MotionController::constrainedRollSetpoint(unsigned int value)
    return uMap(value, 0, UINT32_MAX, ROLL_ENCODER_MIN, ROLL_ENCODER_MAX);
 }
 
-unsigned long long MotionController::uMap(unsigned long long x, unsigned long long in_min, unsigned long long in_max, unsigned long long out_min, unsigned long long out_max) {
+unsigned long long MotionController::uMap(unsigned long long x, unsigned long long in_min, unsigned long long in_max, unsigned long long out_min, unsigned long long out_max)
+{
 
-     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }

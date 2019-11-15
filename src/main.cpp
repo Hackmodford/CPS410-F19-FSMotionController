@@ -129,7 +129,8 @@ void setup()
       outPort = 8888;
    }
 
-   DAC_Sim.setChannelLimit(All, 1200);
+   //DAC_Sim.setChannelLimit(All, 1200);
+   DAC_Sim.setChannelLimit(All, 2400);
 
    setupUDP();
    mc.begin();
@@ -408,8 +409,36 @@ void report()
 
    int pitchPWM = (int)mc.PID_P_Output;
    int rollPWM = (int)mc.PID_R_Output;
-   byte bufferSize = 62;
+   byte bufferSize = 64;
    char *ReplyBuffer = new char[bufferSize];
+   byte inputs = 0;
+   byte outputs = 0;
+
+   if (topSetSwitchA.pressed)
+      inputs &(1 << 0);
+   if (topSetSwitchB.pressed)
+      inputs &(1 << 1);
+   if (bottomSetSwitch.pressed)
+      inputs &(1 << 2);
+   if (homeButton.pressed)
+      inputs &(1 << 3);
+   if (canopyButton.pressed)
+      inputs &(1 << 4);
+   if (stopButton.pressed)
+      inputs &(1 << 5);
+
+   if (digitalRead(DO_UP_CO))
+      inputs &(1 << 0);
+   if (digitalRead(DO_DOWN_CO))
+      inputs &(1 << 1);
+   if (digitalRead(DO_INC_CW))
+      inputs &(1 << 2);
+   if (digitalRead(DO_DEC_CW))
+      inputs &(1 << 3);
+   if (digitalRead(DO_PRESSURE))
+      inputs &(1 << 4);
+   if (digitalRead(DO_P_DIS))
+      inputs &(1 << 5);
 
    memcpy(&ReplyBuffer[0], &mc.PitchSetpoint, sizeof(int));
    memcpy(&ReplyBuffer[2], &mc.PitchValue, sizeof(int));
@@ -424,6 +453,8 @@ void report()
    memcpy(&ReplyBuffer[37], &mc.kP_Roll, sizeof(double));
    memcpy(&ReplyBuffer[45], &mc.kI_Roll, sizeof(double));
    memcpy(&ReplyBuffer[53], &mc.kD_Roll, sizeof(double));
+   memcpy(&ReplyBuffer[63], &inputs, sizeof(byte));
+   memcpy(&ReplyBuffer[64], &outputs, sizeof(byte));
 
    Udp.beginPacket(ipOut, outPort);
    Udp.write(ReplyBuffer, bufferSize);
@@ -436,6 +467,7 @@ void emergencyStopCallback(Button *button)
 {
    if (button->pressed)
    {
+      Serial.println("Pressed Emergency Stop Button");
       mc.emergencyStop();
    }
 }
@@ -470,13 +502,15 @@ void decreaseLiftCallback(Button *button)
    mc.manualDecreaseLift(!button->pressed);
 }
 
-void reverseBytes(void *start, int size) {
-    byte *lo = (byte *)start;
-    byte *hi = (byte *)start + size - 1;
-    byte swap;
-    while (lo < hi) {
-        swap = *lo;
-        *lo++ = *hi;
-        *hi-- = swap;
-    }
+void reverseBytes(void *start, int size)
+{
+   byte *lo = (byte *)start;
+   byte *hi = (byte *)start + size - 1;
+   byte swap;
+   while (lo < hi)
+   {
+      swap = *lo;
+      *lo++ = *hi;
+      *hi-- = swap;
+   }
 }
