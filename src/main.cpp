@@ -415,30 +415,30 @@ void report()
    byte outputs = 0;
 
    if (topSetSwitchA.pressed)
-      inputs &(1 << 0);
+      inputs &= (1 << 0);
    if (topSetSwitchB.pressed)
-      inputs &(1 << 1);
+      inputs &= (1 << 1);
    if (bottomSetSwitch.pressed)
-      inputs &(1 << 2);
+      inputs &= (1 << 2);
    if (homeButton.pressed)
-      inputs &(1 << 3);
+      inputs &= (1 << 3);
    if (canopyButton.pressed)
-      inputs &(1 << 4);
+      inputs &= (1 << 4);
    if (stopButton.pressed)
-      inputs &(1 << 5);
+      inputs &= (1 << 5);
 
    if (digitalRead(DO_UP_CO))
-      inputs &(1 << 0);
+      outputs &= (1 << 0);
    if (digitalRead(DO_DOWN_CO))
-      inputs &(1 << 1);
+      outputs &= (1 << 1);
    if (digitalRead(DO_INC_CW))
-      inputs &(1 << 2);
+      outputs &= (1 << 2);
    if (digitalRead(DO_DEC_CW))
-      inputs &(1 << 3);
+      outputs &= (1 << 3);
    if (digitalRead(DO_PRESSURE))
-      inputs &(1 << 4);
+      outputs &= (1 << 4);
    if (digitalRead(DO_P_DIS))
-      inputs &(1 << 5);
+      outputs &= (1 << 5);
 
    memcpy(&ReplyBuffer[0], &mc.PitchSetpoint, sizeof(int));
    memcpy(&ReplyBuffer[2], &mc.PitchValue, sizeof(int));
