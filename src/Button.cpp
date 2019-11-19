@@ -27,7 +27,9 @@ void Button::read()
     {
       state = value;
       pressed = state == LOW;
-      pCallback(this);
+      if (pCallback != NULL) {
+        pCallback(this);
+      }
     }
   }
   lastValue = value;

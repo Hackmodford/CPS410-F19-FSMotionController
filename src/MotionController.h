@@ -39,14 +39,16 @@ public:
    double kP_Pitch = 1;
    double kI_Pitch = 1;
    double kD_Pitch = 1;
-   double PID_P_Setpoint, PID_P_Input, PID_P_Output;
+   double PID_P_Output;
+
 
    int RollSetpoint = 0;
    int RollValue = 0;
    double kP_Roll = 1;
    double kI_Roll = 1;
    double kD_Roll = 1;
-   double PID_R_Setpoint, PID_R_Input, PID_R_Output;
+   double PID_R_Output;
+   
 
    MotionController(
       DAC *dac, 
@@ -89,6 +91,8 @@ private:
 
    PID PID_Pitch;
    PID PID_Roll;
+   double PID_P_Setpoint, PID_P_Input; 
+   double PID_R_Setpoint, PID_R_Input;
 
    void checkSetSwitches();
    void computePID();
