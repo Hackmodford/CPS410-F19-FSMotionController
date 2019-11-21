@@ -9,5 +9,5 @@
 #define DO_DEC_CW 35
 #define DO_UP_CO 33
 #define DO_P_DIS 31
-#define DO_PRESSURE 27
 #define DO_DOWN_CO 29
+#define DO_PRESSURE 27

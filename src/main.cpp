@@ -18,10 +18,10 @@ using namespace std;
 #define SPI_ETHERNET_PIN 10
 #define SPI_DAC_PIN 52
 
-#define encoderPitchAPin 22
-#define encoderPitchBPin 23
-#define encoderRollAPin 24
-#define encoderRollBPin 25
+#define encoderRollBPin 22
+#define encoderRollAPin 23
+#define encoderPitchAPin 24
+#define encoderPitchBPin 25
 
 #define BTN_ESTOP_PIN 12
 #define BTN_P_INCREASE_PIN 11
