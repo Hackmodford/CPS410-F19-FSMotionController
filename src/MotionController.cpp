@@ -203,6 +203,7 @@ bool MotionController::moveUp()
       Serial.println("A is pressed");
    if (m_topSWA->pressed && m_topSWB->pressed)
    {
+      delay(250);
       digitalWrite(DO_UP_CO, LOW);
       return true;
    }
