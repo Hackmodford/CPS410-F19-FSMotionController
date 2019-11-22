@@ -31,6 +31,8 @@ using namespace std;
 #define BTN_L_INCREASE_PIN 6
 #define BTN_L_DECREASE_PIN 5
 
+#define MOTOR_LIMIT 2400
+
 //A timer to report stats ever 100 miliseconds.
 LoopTimer reportTimer(100);
 
@@ -129,8 +131,7 @@ void setup()
       outPort = 8888;
    }
 
-   //DAC_Sim.setChannelLimit(All, 1200);
-   DAC_Sim.setChannelLimit(All, 2400);
+   DAC_Sim.setChannelLimit(All, MOTOR_LIMIT);
 
    setupUDP();
    mc.begin();

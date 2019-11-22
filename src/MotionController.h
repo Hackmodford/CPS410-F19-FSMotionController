@@ -10,12 +10,12 @@
 using namespace std;
 
 #define PITCH_ENCODER_MIN 0
-#define PITCH_ENCODER_MAX 12600    //105*120 and 360 degree
-#define PITCH_ENCODER_180_DEG 6300 // 180 degree
+#define PITCH_ENCODER_MAX 2500//old value didn't work 12600    //105*120 and 360 degree
+#define PITCH_ENCODER_180_DEG 1250 // 180 degree
 
 #define ROLL_ENCODER_MIN 0
-#define ROLL_ENCODER_MAX 8640     //72*120 and 360 degree
-#define ROLL_ENCODER_180_DEG 4320 // 180 degree
+#define ROLL_ENCODER_MAX 2500//old value didn't work 8640     //72*120 and 360 degree
+#define ROLL_ENCODER_180_DEG 1250 // 180 degree
 
 #define MAX_MANUAL_SPEED 3400
 
