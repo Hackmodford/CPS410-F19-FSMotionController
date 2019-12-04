@@ -57,6 +57,7 @@ void MotionController::update()
       m_dac->clear();
       digitalWrite(DO_DOWN_CO, LOW);
       digitalWrite(DO_UP_CO, LOW);
+      digitalWrite(DO_PRESSURE, HIGH);
       break;
    case starting:
       if (m_stopButton->pressed)
@@ -75,7 +76,10 @@ void MotionController::update()
       PID_R_Output = 0;
       m_dac->setChannel(A, 0);
       m_dac->setChannel(B, 0);
-      if (moveUp())
+      digitalWrite(DO_PRESSURE, LOW);
+      digitalWrite(DO_DOWN_CO, LOW);
+      digitalWrite(DO_UP_CO, HIGH);
+      if (m_topSWA->pressed && m_topSWB->pressed)
       {
          simState = running;
       }
@@ -96,6 +100,8 @@ void MotionController::update()
          emergencyStop();
          break;
       }
+      // digitalWrite(DO_P_DIS, HIGH);
+      digitalWrite(DO_PRESSURE, LOW);
       computePID();
       m_dac->setChannel(A, (int)PID_P_Output);
       m_dac->setChannel(B, (int)PID_R_Output);
@@ -109,7 +115,10 @@ void MotionController::update()
       PID_R_Output = 0;
       m_dac->setChannel(A, 0);
       m_dac->setChannel(B, 0);
-      if (moveDown())
+      digitalWrite(DO_PRESSURE, LOW);
+      digitalWrite(DO_UP_CO, LOW);
+      digitalWrite(DO_DOWN_CO, HIGH);
+      if (m_bottomSW->pressed)
       {
          simState = stopped;
       }
@@ -139,7 +148,6 @@ void MotionController::checkSetSwitches()
 void MotionController::readEncoderData()
 {
    PitchValue = m_encoderPitch->read();
-
    if (PitchValue < 0)
       PitchValue += PITCH_ENCODER_MAX;
    PitchValue %= PITCH_ENCODER_MAX;

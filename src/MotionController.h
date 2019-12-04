@@ -10,12 +10,12 @@
 using namespace std;
 
 #define PITCH_ENCODER_MIN 0
-#define PITCH_ENCODER_MAX 2500//old value didn't work 12600    //105*120 and 360 degree
-#define PITCH_ENCODER_180_DEG 1250 // 180 degree
+#define PITCH_ENCODER_MAX 10000//2500//old value didn't work 12600    //105*120 and 360 degree
+#define PITCH_ENCODER_180_DEG 5000 // 180 degree
 
 #define ROLL_ENCODER_MIN 0
-#define ROLL_ENCODER_MAX 2500//old value didn't work 8640     //72*120 and 360 degree
-#define ROLL_ENCODER_180_DEG 1250 // 180 degree
+#define ROLL_ENCODER_MAX 52000//old value didn't work 8640     //72*120 and 360 degree
+#define ROLL_ENCODER_180_DEG 26000 // 180 degree
 
 #define MAX_MANUAL_SPEED 3400
 
@@ -76,6 +76,7 @@ public:
    void startSimulation();
    void endSimulation();
    void emergencyStop();
+   unsigned long long uMap(unsigned long long x, unsigned long long in_min, unsigned long long in_max, unsigned long long out_min, unsigned long long out_max);
 
 private:
 
@@ -99,7 +100,7 @@ private:
    void readEncoderData();
    bool moveUp();
    bool moveDown();
-   unsigned long long uMap(unsigned long long x, unsigned long long in_min, unsigned long long in_max, unsigned long long out_min, unsigned long long out_max);
+   
 };
 
 #endif

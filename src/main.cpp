@@ -98,6 +98,7 @@ void reverseBytes(void *start, int size);
 
 void setup()
 {
+   //DISABLE ALL OUTPUTS
    pinMode(DO_INC_CW, OUTPUT);
    pinMode(DO_DEC_CW, OUTPUT);
    pinMode(DO_UP_CO, OUTPUT);
@@ -129,6 +130,14 @@ void setup()
       localPort = 8888;
       ipOut = IPAddress(192, 168, 1, 5);
       outPort = 8888;
+
+      mc.kP_Pitch = 18.0;
+      mc.kI_Pitch = 1.0;
+      mc.kD_Pitch = 40.0;
+
+      mc.kP_Roll = 7.0;
+      mc.kI_Roll = 1.0;
+      mc.kD_Roll = 6.0;
    }
 
    DAC_Sim.setChannelLimit(All, MOTOR_LIMIT);
@@ -444,8 +453,10 @@ void report()
 
    memcpy(&ReplyBuffer[0], &mc.PitchSetpoint, sizeof(int));
    memcpy(&ReplyBuffer[2], &mc.PitchValue, sizeof(int));
-   memcpy(&ReplyBuffer[4], &mc.RollSetpoint, sizeof(int));
-   memcpy(&ReplyBuffer[6], &mc.RollValue, sizeof(int));
+   int rs = mc.uMap(mc.RollSetpoint, 0, ROLL_ENCODER_MAX, 0, 360);
+   int rv = mc.uMap(mc.RollValue, 0, ROLL_ENCODER_MAX, 0, 360);
+   memcpy(&ReplyBuffer[4], &rs, sizeof(int));
+   memcpy(&ReplyBuffer[6], &rv, sizeof(int));
    memcpy(&ReplyBuffer[8], &pitchPWM, sizeof(int));
    memcpy(&ReplyBuffer[10], &rollPWM, sizeof(int));
    memcpy(&ReplyBuffer[12], &mc.simState, sizeof(byte));
