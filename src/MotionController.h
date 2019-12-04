@@ -4,7 +4,6 @@
 #include <Encoder.h>
 #include <PID_v1.h>
 
-#include "Dac.h"
 #include "Button.h"
 
 using namespace std;
@@ -17,7 +16,13 @@ using namespace std;
 #define ROLL_ENCODER_MAX 52000//old value didn't work 8640     //72*120 and 360 degree
 #define ROLL_ENCODER_180_DEG 26000 // 180 degree
 
-#define MAX_MANUAL_SPEED 3400
+#define MAX_POS_V 4096
+#define ZERO_V 2048
+#define MAX_NEG_V 0
+#define MANUAL_V 100
+
+#define INT3_MIN -2048
+#define INT3_MAX 2047
 
 enum state
 {
@@ -51,15 +56,15 @@ public:
    
 
    MotionController(
-      DAC *dac, 
+      int pitchDACPin,
+      int rollDACPin, 
       Encoder *pitchEncoder, 
       Encoder *rollEncoder,
       Button *topSWA,
       Button *topSWB,
       Button *bottomSW,
-      Button *stopButton);
-
-   void begin();
+      Button *stopButton
+   );
 
    void update();
 
@@ -80,7 +85,8 @@ public:
 
 private:
 
-   DAC *m_dac;
+   int m_pitchDACPin;
+   int m_rollDACPin;
 
    Encoder *m_encoderPitch;
    Encoder *m_encoderRoll;

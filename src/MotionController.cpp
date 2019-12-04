@@ -5,7 +5,8 @@
 using namespace std;
 
 MotionController::MotionController(
-    DAC *dac,
+    int pitchDACPin,
+    int rollDACPin,
     Encoder *pitchEncoder,
     Encoder *rollEncoder,
     Button *topSWA,
@@ -15,7 +16,8 @@ MotionController::MotionController(
     : PID_Pitch(PID(&PID_P_Input, &PID_P_Output, &PID_P_Setpoint, kP_Pitch, kI_Pitch, kD_Pitch, REVERSE)),
       PID_Roll(PID(&PID_R_Input, &PID_R_Output, &PID_R_Setpoint, kP_Roll, kI_Roll, kD_Roll, REVERSE))
 {
-   m_dac = dac;
+   m_pitchDACPin = pitchDACPin;
+   m_rollDACPin = rollDACPin;
    m_encoderPitch = pitchEncoder;
    m_encoderRoll = rollEncoder;
    m_topSWA = topSWA;
@@ -24,8 +26,8 @@ MotionController::MotionController(
    m_stopButton = stopButton;
    // Use negative min to allow PID calcuation to reverse motor.
    // But keep range of 0-255
-   PID_Pitch.SetOutputLimits(INT16_MIN, INT16_MAX);
-   PID_Roll.SetOutputLimits(INT16_MIN, INT16_MAX);
+   PID_Pitch.SetOutputLimits(INT3_MIN, INT3_MAX);
+   PID_Roll.SetOutputLimits(INT3_MIN, INT3_MAX);
 
    PID_Pitch.SetMode(AUTOMATIC);
    PID_Roll.SetMode(AUTOMATIC);
@@ -39,11 +41,6 @@ MotionController::MotionController(
    simState = stopped;
 }
 
-void MotionController::begin()
-{
-   m_dac->begin();
-}
-
 void MotionController::update()
 {
    checkSetSwitches();
@@ -52,9 +49,10 @@ void MotionController::update()
    switch (simState)
    {
    case stopped:
-      PID_P_Output = 0;
-      PID_R_Output = 0;
-      m_dac->clear();
+      PID_P_Output = ZERO_V;
+      PID_R_Output = ZERO_V;
+      analogWrite(m_pitchDACPin, ZERO_V);
+      analogWrite(m_rollDACPin, ZERO_V);
       digitalWrite(DO_DOWN_CO, LOW);
       digitalWrite(DO_UP_CO, LOW);
       digitalWrite(DO_PRESSURE, HIGH);
@@ -72,10 +70,10 @@ void MotionController::update()
       // Disconnect pitch motor allowing to move.
       // Balance
       // Raise
-      PID_P_Output = 0;
-      PID_R_Output = 0;
-      m_dac->setChannel(A, 0);
-      m_dac->setChannel(B, 0);
+      PID_P_Output = ZERO_V;
+      PID_R_Output = ZERO_V;
+      analogWrite(m_pitchDACPin, ZERO_V);
+      analogWrite(m_rollDACPin, ZERO_V);
       digitalWrite(DO_PRESSURE, LOW);
       digitalWrite(DO_DOWN_CO, LOW);
       digitalWrite(DO_UP_CO, HIGH);
@@ -103,18 +101,16 @@ void MotionController::update()
       // digitalWrite(DO_P_DIS, HIGH);
       digitalWrite(DO_PRESSURE, LOW);
       computePID();
-      m_dac->setChannel(A, (int)PID_P_Output);
-      m_dac->setChannel(B, (int)PID_R_Output);
-      m_dac->setChannel(C, 0);
-      m_dac->setChannel(D, 0);
+      analogWrite(m_pitchDACPin, (int)PID_P_Output + INT3_MAX);
+      analogWrite(m_rollDACPin, (int)PID_R_Output + INT3_MAX);
       break;
    case ending:
       // Go to neutral position
       // Lower
-      PID_P_Output = 0;
-      PID_R_Output = 0;
-      m_dac->setChannel(A, 0);
-      m_dac->setChannel(B, 0);
+      PID_P_Output = ZERO_V;
+      PID_R_Output = ZERO_V;
+      analogWrite(m_pitchDACPin, ZERO_V);
+      analogWrite(m_rollDACPin, ZERO_V);
       digitalWrite(DO_PRESSURE, LOW);
       digitalWrite(DO_UP_CO, LOW);
       digitalWrite(DO_DOWN_CO, HIGH);
@@ -126,7 +122,8 @@ void MotionController::update()
    case emergency_stop:
       // No power to motors
       // Ability to exit emergency stop.
-      m_dac->clear();
+      analogWrite(m_pitchDACPin, ZERO_V);
+      analogWrite(m_rollDACPin, ZERO_V);
       break;
    case manual:
       break;
@@ -236,60 +233,56 @@ void MotionController::manualIncreasePitch(bool end)
 {
    if (end)
    {
-      PID_P_Output = 0;
-      m_dac->setChannel(A, PID_P_Output);
+      PID_P_Output = (double)ZERO_V;
    }
    else
    {
       simState = manual;
-      PID_P_Output = MAX_MANUAL_SPEED; //update for reporting.
-      m_dac->setChannel(A, PID_P_Output);
+      PID_P_Output = (double)MANUAL_V; //update for reporting.
    }
+   analogWrite(m_pitchDACPin, (int)PID_P_Output);
 }
 
 void MotionController::manualDecreasePitch(bool end)
 {
    if (end)
    {
-      PID_P_Output = 0;
-      m_dac->setChannel(A, PID_P_Output);
+      PID_P_Output = ZERO_V;
    }
    else
    {
       simState = manual;
-      PID_P_Output = -MAX_MANUAL_SPEED; //update for reporting.
-      m_dac->setChannel(A, PID_P_Output);
+      PID_P_Output = -MANUAL_V; //update for reporting.
    }
+   analogWrite(m_pitchDACPin, (int)PID_P_Output);
 }
 
 void MotionController::manualIncreaseRoll(bool end)
 {
    if (end)
    {
-      PID_R_Output = 0;
-      m_dac->setChannel(B, PID_P_Output);
+      PID_R_Output = ZERO_V;
    }
    else
    {
       simState = manual;
-      PID_R_Output = MAX_MANUAL_SPEED; //update for reporting.
-      m_dac->setChannel(B, PID_R_Output);
+      PID_R_Output = MANUAL_V; //update for reporting.
    }
+   analogWrite(m_rollDACPin, (int)PID_R_Output);
 }
 
 void MotionController::manualDecreaseRoll(bool end)
 {
    if (end)
    {
-      PID_R_Output = 0;
-      m_dac->setChannel(B, PID_P_Output);
+      PID_R_Output = ZERO_V;
    }
    else
    {
       simState = manual;
-      PID_R_Output = -MAX_MANUAL_SPEED; //update for reporting.
-      m_dac->setChannel(B, PID_R_Output);
+      PID_R_Output = -MANUAL_V; //update for reporting.
    }
+   analogWrite(m_rollDACPin, (int)PID_R_Output);
 }
 
 void MotionController::manualIncreaseLift(bool end)
@@ -357,8 +350,8 @@ void MotionController::endSimulation()
 
 void MotionController::emergencyStop()
 {
-   //TODO: turn off up an down pins
-   m_dac->clear();
+   analogWrite(m_pitchDACPin, ZERO_V);
+   analogWrite(m_rollDACPin, ZERO_V);
 
    digitalWrite(DO_INC_CW, LOW);
    digitalWrite(DO_DEC_CW, LOW);

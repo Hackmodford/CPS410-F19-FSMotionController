@@ -6,7 +6,6 @@
 #include <SD.h>
 
 #include "Config.h"
-#include "DAC.h"
 #include "Button.h"
 #include "MotionController.h"
 #include "LoopTimer.h"
@@ -16,7 +15,6 @@ using namespace std;
 
 #define SPI_SD_PIN 4
 #define SPI_ETHERNET_PIN 10
-#define SPI_DAC_PIN 52
 
 #define encoderRollBPin 22
 #define encoderRollAPin 23
@@ -33,13 +31,14 @@ using namespace std;
 
 #define MOTOR_LIMIT 2400
 
+#define DAC_PITCH_PIN DAC0
+#define DAC_ROLL_PIN  DAC1
+
 //A timer to report stats ever 100 miliseconds.
 LoopTimer reportTimer(100);
 
 Encoder EncoderPitch(encoderPitchAPin, encoderPitchBPin);
 Encoder EncoderRoll(encoderRollAPin, encoderRollBPin);
-
-DAC DAC_Sim(SPI_DAC_PIN);
 
 Button topSetSwitchA = Button(DI_TOP_A, NULL);
 Button topSetSwitchB = Button(DI_TOP_B, NULL);
@@ -49,7 +48,8 @@ Button homeButton = Button(DI_HOME, NULL);
 Button canopyButton = Button(DI_CANOPY, NULL);
 
 MotionController mc(
-    &DAC_Sim,
+    DAC_PITCH_PIN,
+    DAC_ROLL_PIN,
     &EncoderPitch,
     &EncoderRoll,
     &topSetSwitchA,
@@ -98,7 +98,7 @@ void reverseBytes(void *start, int size);
 
 void setup()
 {
-   //DISABLE ALL OUTPUTS
+   //SETUP ALL OUTPUTS
    pinMode(DO_INC_CW, OUTPUT);
    pinMode(DO_DEC_CW, OUTPUT);
    pinMode(DO_UP_CO, OUTPUT);
@@ -106,6 +106,7 @@ void setup()
    pinMode(DO_PRESSURE, OUTPUT);
    pinMode(DO_DOWN_CO, OUTPUT);
 
+   //SET ALL OUTPUTS TO LOW
    digitalWrite(DO_INC_CW, LOW);
    digitalWrite(DO_DEC_CW, LOW);
    digitalWrite(DO_UP_CO, LOW);
@@ -113,6 +114,12 @@ void setup()
    digitalWrite(DO_PRESSURE, LOW);
    digitalWrite(DO_DOWN_CO, LOW);
 
+   //use full range of DUE DAC.
+   analogWriteResolution(12);
+   //make sure opamp is outputing 0V
+   analogWrite(DAC_PITCH_PIN, ZERO_V);
+   analogWrite(DAC_ROLL_PIN, ZERO_V);
+   
    Serial.begin(115200);
 
    //initializing the SD card
@@ -140,10 +147,7 @@ void setup()
       mc.kD_Roll = 6.0;
    }
 
-   DAC_Sim.setChannelLimit(All, MOTOR_LIMIT);
-
    setupUDP();
-   mc.begin();
 }
 
 void loadConfiguration()
@@ -334,43 +338,6 @@ void readUDP()
       memcpy(&mc.kP_Roll, &packetBuffer[1], sizeof(double));
       memcpy(&mc.kI_Roll, &packetBuffer[9], sizeof(double));
       memcpy(&mc.kD_Roll, &packetBuffer[17], sizeof(double));
-      break;
-   }
-   case 'G':
-   { //update coarse gain
-      //[command][channel][cg]
-      if (packetSize != 3)
-      {
-         Serial.println("Malformed set coarse gain command");
-         break;
-      }
-      channelOption channel = byteToChannelOption(packetBuffer[1]);
-      coarseGainOption option = byteToCoarseGainOption(packetBuffer[2]);
-      DAC_Sim.setCoarseGain(channel, option);
-      break;
-   }
-   case 'g':
-   { //update fine gain
-      //[command][channel][fg]
-      if (packetSize != 3)
-      {
-         Serial.println("Malformed set fine gain command");
-         break;
-      }
-      channelOption channel = byteToChannelOption(packetBuffer[1]);
-      DAC_Sim.setFineGain(channel, packetBuffer[2]); //Byte with range (-32, 31)
-      break;
-   }
-   case 'O':
-   { //update offset
-      //[command][channel][offset]
-      if (packetSize != 3)
-      {
-         Serial.println("Malformed set offset command");
-         break;
-      }
-      channelOption channel = byteToChannelOption(packetBuffer[1]);
-      DAC_Sim.setOffset(channel, packetBuffer[2]);
       break;
    }
    default:
