@@ -16,7 +16,7 @@ using namespace std;
 #define ROLL_ENCODER_MAX 52000//old value didn't work 8640     //72*120 and 360 degree
 #define ROLL_ENCODER_180_DEG 26000 // 180 degree
 
-#define MAX_POS_V 4096
+#define MAX_POS_V 4095
 #define ZERO_V 2048
 #define MAX_NEG_V 0
 #define MANUAL_V 100
