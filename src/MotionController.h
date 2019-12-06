@@ -21,8 +21,8 @@ using namespace std;
 #define MAX_NEG_V 0
 #define MANUAL_V 100
 
-#define INT3_MIN -2048
-#define INT3_MAX 2047
+#define INT12BIT_MIN -2048
+#define INT12BIT_MAX 2047
 
 enum state
 {

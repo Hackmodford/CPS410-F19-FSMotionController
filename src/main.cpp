@@ -233,6 +233,7 @@ void readUDP()
       Serial.println("Received End Command");
       break;
    }
+   //motion control
    case 'M':
    {
       // update set points
@@ -250,8 +251,12 @@ void readUDP()
       //convert big endian message to little endian
       char pitchBuffer[sizeof(unsigned int)] = "";
       char rollBuffer[sizeof(unsigned int)] = "";
+      //copy buffer bytes 1-4 
       memcpy(&pitchBuffer, &packetBuffer[1], sizeof(unsigned int));
+      //copy buffer bytes 5-9
       memcpy(&rollBuffer, &packetBuffer[5], sizeof(unsigned int));
+
+      //reverse bytes because sim tools is big endian
       reverseBytes(pitchBuffer, sizeof(unsigned int));
       reverseBytes(rollBuffer, sizeof(unsigned int));
 
@@ -265,6 +270,7 @@ void readUDP()
       break;
    }
    case 'm':
+   //manual control: untested
    {
       if (packetSize == 2)
       {

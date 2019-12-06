@@ -25,9 +25,9 @@ MotionController::MotionController(
    m_bottomSW = bottomSW;
    m_stopButton = stopButton;
    // Use negative min to allow PID calcuation to reverse motor.
-   // But keep range of 0-255
-   PID_Pitch.SetOutputLimits(INT3_MIN, INT3_MAX);
-   PID_Roll.SetOutputLimits(INT3_MIN, INT3_MAX);
+   // the range of the 12 bit dac requires using 1.5 bytes
+   PID_Pitch.SetOutputLimits(INT12BIT_MIN, INT12BIT_MAX);
+   PID_Roll.SetOutputLimits(INT12BIT_MIN, INT12BIT_MAX);
 
    PID_Pitch.SetMode(AUTOMATIC);
    PID_Roll.SetMode(AUTOMATIC);
@@ -101,8 +101,8 @@ void MotionController::update()
       // digitalWrite(DO_P_DIS, HIGH);
       digitalWrite(DO_PRESSURE, LOW);
       computePID();
-      analogWrite(m_pitchDACPin, (int)PID_P_Output + INT3_MAX);
-      analogWrite(m_rollDACPin, (int)PID_R_Output + INT3_MAX);
+      analogWrite(m_pitchDACPin, (int)PID_P_Output + INT12BIT_MAX);
+      analogWrite(m_rollDACPin, (int)PID_R_Output + INT12BIT_MAX);
       break;
    case ending:
       // Go to neutral position
@@ -145,12 +145,12 @@ void MotionController::checkSetSwitches()
 void MotionController::readEncoderData()
 {
    PitchValue = m_encoderPitch->read();
-   if (PitchValue < 0)
+   if (PitchValue < PITCH_ENCODER_MIN)
       PitchValue += PITCH_ENCODER_MAX;
    PitchValue %= PITCH_ENCODER_MAX;
 
    RollValue = m_encoderRoll->read();
-   if (RollValue < 0)
+   if (RollValue < ROLL_ENCODER_MIN)
       RollValue += ROLL_ENCODER_MAX;
    RollValue %= ROLL_ENCODER_MAX;
 }
