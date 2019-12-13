@@ -6586,6 +6586,10 @@ wire to board 2.54 mm (0.100") pitch header</description>
 <part name="X1" library="con-molex" library_urn="urn:adsk.eagle:library:165" deviceset="C-GRID-03" device="-70543" package3d_urn="urn:adsk.eagle:package:8078684/1"/>
 <part name="C9" library="SparkFun-Capacitors" library_urn="urn:adsk.eagle:library:510" deviceset="10NF" device="-0603-50V-10%" package3d_urn="urn:adsk.eagle:package:37414/1" value="10nF"/>
 <part name="C10" library="SparkFun-Capacitors" library_urn="urn:adsk.eagle:library:510" deviceset="10NF" device="-0603-50V-10%" package3d_urn="urn:adsk.eagle:package:37414/1" value="10nF"/>
+<part name="R23" library="resistor" library_urn="urn:adsk.eagle:library:348" deviceset="R-US_" device="M0805" package3d_urn="urn:adsk.eagle:package:23556/2" value="10"/>
+<part name="R24" library="resistor" library_urn="urn:adsk.eagle:library:348" deviceset="R-US_" device="M0805" package3d_urn="urn:adsk.eagle:package:23556/2" value="10"/>
+<part name="C11" library="SparkFun-Capacitors" library_urn="urn:adsk.eagle:library:510" deviceset="0.1UF" device="-0603-25V-(+80/-20%)" package3d_urn="urn:adsk.eagle:package:37414/1" value="0.1uF"/>
+<part name="C12" library="SparkFun-Capacitors" library_urn="urn:adsk.eagle:library:510" deviceset="0.1UF" device="-0603-25V-(+80/-20%)" package3d_urn="urn:adsk.eagle:package:37414/1" value="0.1uF"/>
 </parts>
 <sheets>
 <sheet>
@@ -6980,6 +6984,22 @@ wire to board 2.54 mm (0.100") pitch header</description>
 <attribute name="NAME" x="186.436" y="85.979" size="1.778" layer="95" font="vector" rot="R180"/>
 <attribute name="VALUE" x="186.436" y="91.059" size="1.778" layer="96" font="vector" rot="R180"/>
 </instance>
+<instance part="R23" gate="G$1" x="233.68" y="111.76" smashed="yes" rot="R180">
+<attribute name="NAME" x="237.49" y="110.2614" size="1.778" layer="95" rot="R180"/>
+<attribute name="VALUE" x="237.49" y="115.062" size="1.778" layer="96" rot="R180"/>
+</instance>
+<instance part="R24" gate="G$1" x="233.68" y="109.22" smashed="yes" rot="R180">
+<attribute name="NAME" x="237.49" y="107.7214" size="1.778" layer="95" rot="R180"/>
+<attribute name="VALUE" x="237.49" y="112.522" size="1.778" layer="96" rot="R180"/>
+</instance>
+<instance part="C11" gate="G$1" x="241.3" y="114.3" smashed="yes">
+<attribute name="NAME" x="242.824" y="117.221" size="1.778" layer="95" font="vector"/>
+<attribute name="VALUE" x="242.824" y="112.141" size="1.778" layer="96" font="vector"/>
+</instance>
+<instance part="C12" gate="G$1" x="241.3" y="104.14" smashed="yes">
+<attribute name="NAME" x="242.824" y="107.061" size="1.778" layer="95" font="vector"/>
+<attribute name="VALUE" x="242.824" y="101.981" size="1.778" layer="96" font="vector"/>
+</instance>
 </instances>
 <busses>
 </busses>
@@ -7140,6 +7160,16 @@ wire to board 2.54 mm (0.100") pitch header</description>
 <wire x1="269.24" y1="-50.8" x2="269.24" y2="-55.88" width="0.1524" layer="91"/>
 <wire x1="269.24" y1="-55.88" x2="261.62" y2="-55.88" width="0.1524" layer="91"/>
 <junction x="261.62" y="-55.88"/>
+</segment>
+<segment>
+<pinref part="C11" gate="G$1" pin="1"/>
+<wire x1="241.3" y1="119.38" x2="241.3" y2="121.92" width="0.1524" layer="91"/>
+<label x="241.3" y="121.92" size="1.778" layer="95" rot="R90" xref="yes"/>
+</segment>
+<segment>
+<pinref part="C12" gate="G$1" pin="2"/>
+<wire x1="241.3" y1="101.6" x2="241.3" y2="99.06" width="0.1524" layer="91"/>
+<label x="241.3" y="99.06" size="1.778" layer="95" rot="R270" xref="yes"/>
 </segment>
 </net>
 <net name="DI_TOP_A" class="0">
@@ -7416,12 +7446,12 @@ wire to board 2.54 mm (0.100") pitch header</description>
 <segment>
 <pinref part="U1" gate="A" pin="OUTA"/>
 <wire x1="223.52" y1="111.76" x2="228.6" y2="111.76" width="0.1524" layer="91"/>
-<label x="233.68" y="111.76" size="1.778" layer="95" xref="yes"/>
-<wire x1="228.6" y1="111.76" x2="233.68" y2="111.76" width="0.1524" layer="91"/>
+<label x="248.92" y="111.76" size="1.778" layer="95" xref="yes"/>
 <wire x1="228.6" y1="111.76" x2="228.6" y2="124.46" width="0.1524" layer="91"/>
-<junction x="228.6" y="111.76"/>
 <wire x1="228.6" y1="124.46" x2="220.98" y2="124.46" width="0.1524" layer="91"/>
 <pinref part="R7" gate="G$1" pin="2"/>
+<pinref part="R23" gate="G$1" pin="2"/>
+<junction x="228.6" y="111.76"/>
 </segment>
 </net>
 <net name="SIG1" class="0">
@@ -7433,11 +7463,11 @@ wire to board 2.54 mm (0.100") pitch header</description>
 <segment>
 <pinref part="U1" gate="A" pin="OUTB"/>
 <wire x1="223.52" y1="109.22" x2="228.6" y2="109.22" width="0.1524" layer="91"/>
-<label x="233.68" y="109.22" size="1.778" layer="95" xref="yes"/>
-<wire x1="228.6" y1="109.22" x2="233.68" y2="109.22" width="0.1524" layer="91"/>
+<label x="248.92" y="109.22" size="1.778" layer="95" xref="yes"/>
 <wire x1="228.6" y1="109.22" x2="228.6" y2="101.6" width="0.1524" layer="91"/>
-<junction x="228.6" y="109.22"/>
 <pinref part="R8" gate="G$1" pin="2"/>
+<pinref part="R24" gate="G$1" pin="2"/>
+<junction x="228.6" y="109.22"/>
 </segment>
 </net>
 <net name="+12V" class="2">
@@ -7726,6 +7756,24 @@ wire to board 2.54 mm (0.100") pitch header</description>
 <wire x1="269.24" y1="-48.26" x2="233.68" y2="-48.26" width="0.1524" layer="91"/>
 <wire x1="233.68" y1="-48.26" x2="233.68" y2="-45.72" width="0.1524" layer="91"/>
 <junction x="233.68" y="-45.72"/>
+</segment>
+</net>
+<net name="N$5" class="0">
+<segment>
+<pinref part="R24" gate="G$1" pin="1"/>
+<pinref part="C12" gate="G$1" pin="1"/>
+<wire x1="241.3" y1="109.22" x2="238.76" y2="109.22" width="0.1524" layer="91"/>
+<wire x1="248.92" y1="109.22" x2="241.3" y2="109.22" width="0.1524" layer="91"/>
+<junction x="241.3" y="109.22"/>
+</segment>
+</net>
+<net name="N$6" class="0">
+<segment>
+<pinref part="R23" gate="G$1" pin="1"/>
+<pinref part="C11" gate="G$1" pin="2"/>
+<wire x1="241.3" y1="111.76" x2="238.76" y2="111.76" width="0.1524" layer="91"/>
+<wire x1="248.92" y1="111.76" x2="241.3" y2="111.76" width="0.1524" layer="91"/>
+<junction x="241.3" y="111.76"/>
 </segment>
 </net>
 </nets>

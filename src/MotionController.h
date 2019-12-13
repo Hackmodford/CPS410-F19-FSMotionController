@@ -24,6 +24,14 @@ using namespace std;
 #define INT12BIT_MIN -2048
 #define INT12BIT_MAX 2047
 
+// #define MAX_POS_V 3200
+// #define ZERO_V 1600
+// #define MAX_NEG_V 0
+// #define MANUAL_V 100
+
+// #define INT12BIT_MIN -1600
+// #define INT12BIT_MAX 1599
+
 enum state
 {
    stopped = 0,
